@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Server", "Fortitude.Server\Fortitude.Server.csproj", "{3F7CD6CB-DB98-4A5C-AEFF-BFBCE8CDF226}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Client", "Fortitude.Client\Fortitude.Client.csproj", "{BF9FC077-D5FE-4D07-BD9D-6CC6D25B8B94}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Tests", "Fortitude.Tests\Fortitude.Tests.csproj", "{16D5E474-EBF8-4CA6-864B-1797559F6772}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3F7CD6CB-DB98-4A5C-AEFF-BFBCE8CDF226}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3F7CD6CB-DB98-4A5C-AEFF-BFBCE8CDF226}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3F7CD6CB-DB98-4A5C-AEFF-BFBCE8CDF226}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3F7CD6CB-DB98-4A5C-AEFF-BFBCE8CDF226}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF9FC077-D5FE-4D07-BD9D-6CC6D25B8B94}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF9FC077-D5FE-4D07-BD9D-6CC6D25B8B94}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF9FC077-D5FE-4D07-BD9D-6CC6D25B8B94}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF9FC077-D5FE-4D07-BD9D-6CC6D25B8B94}.Release|Any CPU.Build.0 = Release|Any CPU
+		{16D5E474-EBF8-4CA6-864B-1797559F6772}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{16D5E474-EBF8-4CA6-864B-1797559F6772}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{16D5E474-EBF8-4CA6-864B-1797559F6772}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{16D5E474-EBF8-4CA6-864B-1797559F6772}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
