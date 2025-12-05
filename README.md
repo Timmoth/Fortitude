@@ -8,13 +8,14 @@ _Cheat reality just enough to achieve your objective - A lightweight, fluent, mi
 ## What is Fortitude?
 **Fortitude** is a .NET testing utility that spins up a lightweight in-process server so your tests can define **fake service behavior dynamically and fluently**.
 
-It allows you to:
-- Mock real services without work arounds
-- Perform true **black-box testing**  
-- Define test-specific server behavior inline  
-- Build robust integration tests without standing up full external infrastructure  
+Fortitude enables you to:
+- Define fake service behavior **dynamically and fluently**
+- Mock real external services without any workarounds
+- Perform true **black-box** and integration testing
+- Simulate headers, query params, method checks, body predicates, and more
+- Operate without standing up real infrastructure or modifying your SUT
 
-Fortitude acts as a highly flexible, temporary **“illusion server”** for your tests — returning exactly what you define, when you define it.
+Fortitude acts as a highly flexible mock server for your tests — returning exactly what you define, when you define it. Your SUT thinks it’s calling real services, but your tests are in total control.
 
 ## **Operation Fortitude in history**
 
@@ -26,12 +27,12 @@ Its purpose was to convince German intelligence that the invasion would occur in
 The Allies used:
 - Inflatable tanks  
 - Wooden aircraft  
-- Fake radio traffic  
 - Entire ghost armies  
 
 All designed to **simulate real military forces that didn’t actually exist**.
  
-Much like its namesake, **Fortitude helps you cheat reality just enough to achieve your objective**.
+Much like its namesake, Fortitude simulates service behavior - a controlled deception that empowers your testing strategy.
+
 
 ## Key Features
 - **Ideal for black-box testing**  
@@ -39,3 +40,51 @@ Much like its namesake, **Fortitude helps you cheat reality just enough to achie
 - **Middleware-driven architecture** that intercepts routes  
 - **No need for external mocks**  
 - **Minimal Configuration**
+
+```
+[Test Code] 
+    │
+    │ 1. Start FortitudeClient + define handlers
+    ▼
+[Fortitude Client]
+    │
+    │ 2. Connects to Fortitude Server (SignalR)
+    ▼
+[Fortitude Server]
+    │
+    │ 3. Waits for incoming HTTP requests from SUT
+    ▼
+[SUT Service]
+    │
+    │ 4. Makes HTTP call to what it thinks is a real API
+    ▼
+[Fortitude Server Middleware]
+    │
+    │ 5. Intercepts request (catch-all middleware)
+    │ 6. Forwards request → Fortitude Client via SignalR
+    ▼
+[Fortitude Client / Test]
+    │
+    │ 7. Matches request using:
+    │      - Method
+    │      - Route
+    │      - Headers
+    │      - Query params
+    │      - Body predicates
+    │
+    │ 8. Selects last matching handler → produces a FortitudeResponse
+    ▼
+[Fortitude Server]
+    │
+    │ 9. Returns the fake response to the SUT
+    ▼
+[SUT Service]
+    │
+    │ 10. Processes the response as if from a real dependency
+    ▼
+[Test Code]
+    │
+    │ 11. Assert on outputs, triggered flows, and the returned data
+    ▼
+[End]
+```
