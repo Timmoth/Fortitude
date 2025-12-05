@@ -43,6 +43,16 @@ Much like its namesake, Fortitude simulates service behavior - a controlled dece
 
 ## Example
 
+### Running the Fortitude Server via Docker
+
+To pull the latest Fortitude Server image from Docker Hub:
+
+```docker pull aptacode/fortitude-server:latest```
+
+To run the container and expose port 8080:
+
+```docker run -p 5093:8080 aptacode/fortitude-server:latest```
+
 ```csharp
     [Fact]
     public async Task CanCreateUserWithHeadersAndQueryParams()

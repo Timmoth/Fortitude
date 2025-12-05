@@ -1,4 +1,6 @@
-﻿using Fortitude.Client;
+﻿using System.Text;
+using System.Text.Json;
+using Fortitude.Client;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -6,6 +8,7 @@ namespace Tests;
 
 public class FortitudeClientTests
 {
+    private static string _fortitudeBaseUrl = "http://localhost:8080";
     private readonly ITestOutputHelper _output;
 
     public FortitudeClientTests(ITestOutputHelper output)
@@ -20,8 +23,8 @@ public class FortitudeClientTests
     public async Task Test1()
     {
         // Given
-        var fortitude = new FortitudeClient(_output);
-        await fortitude.StartAsync(url: "http://localhost:5093/fortitude");
+        var snide = new FortitudeClient(_output);
+        await snide.StartAsync(url: $"{_fortitudeBaseUrl}/fortitude");
 
         var fakeUser = new FakeUser();
         var handler = new FortitudeHandlerExtensions.FortitudeHandlerBuilder()
@@ -32,19 +35,99 @@ public class FortitudeClientTests
                 Body = System.Text.Json.JsonSerializer.Serialize(fakeUser)
             });
 
-        fortitude.Add(handler);
+        snide.Add(handler);
 
         using var http = new HttpClient();
-        var response = await http.GetAsync($"http://localhost:5093/users/{fakeUser.Id}");
+        var response = await http.GetAsync($"{_fortitudeBaseUrl}/users/{fakeUser.Id}");
 
         var body = await response.Content.ReadAsStringAsync();
         _output.WriteLine($"Response: {body}");
 
         // Then
-        await fortitude.StopAsync();
+        await snide.StopAsync();
         var returnedUser = System.Text.Json.JsonSerializer.Deserialize<FakeUser>(body);
         Assert.Equal(fakeUser.Id, returnedUser?.Id);
 
     }
 
+      public class CreateUserRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Age { get; set; }
+    }
+
+    public class CreateUserResponse
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public string Name { get; set; } = string.Empty;
+        public int Age { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    [Fact]
+    public async Task CanCreateUserWithHeadersAndQueryParams()
+    {
+        // Given
+        
+        // Start Fortitude client
+        var fortitude = new FortitudeClient(_output);
+        await fortitude.StartAsync(url: $"{_fortitudeBaseUrl}/fortitude");
+
+        // Define handler for POST /users with header and query param checks
+        var handler = new FortitudeHandlerExtensions.FortitudeHandlerBuilder()
+            .Post()
+            .HttpRoute("/users")
+            .Header("X-Auth-Token", "secret-token")
+            .QueryParam("source", "unit-test")
+            .Body(body =>
+            {
+                var req = JsonSerializer.Deserialize<CreateUserRequest>(body ?? "");
+                return req != null && !string.IsNullOrWhiteSpace(req.Name) && req.Age > 0;
+            })
+            .Build(request =>
+            {
+                var reqObj = JsonSerializer.Deserialize<CreateUserRequest>(request.Body ?? "")!;
+                var response = new CreateUserResponse
+                {
+                    Name = reqObj.Name,
+                    Age = reqObj.Age
+                };
+
+                return new FortitudeResponse(request.RequestId)
+                {
+                    Body = JsonSerializer.Serialize(response),
+                    Status = 201
+                };
+            });
+
+        fortitude.Add(handler);
+
+        // When
+        // SUT would make this HTTP request internally,
+        // For the sake of the demo we'll make it here
+        using var http = new HttpClient();
+        var userRequest = new CreateUserRequest { Name = "Alice", Age = 30 };
+        var requestBody = new StringContent(JsonSerializer.Serialize(userRequest), Encoding.UTF8, "application/json");
+
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{_fortitudeBaseUrl}/users?source=unit-test")
+        {
+            Content = requestBody
+        };
+        httpRequest.Headers.Add("X-Auth-Token", "secret-token");
+
+        var responseMessage = await http.SendAsync(httpRequest);
+        var responseBody = await responseMessage.Content.ReadAsStringAsync();
+        _output.WriteLine($"Response: {responseBody}");
+
+
+        // Then
+        var createdUser = JsonSerializer.Deserialize<CreateUserResponse>(responseBody);
+        Assert.NotNull(createdUser);
+        Assert.Equal(userRequest.Name, createdUser?.Name);
+        Assert.Equal(userRequest.Age, createdUser?.Age);
+        Assert.NotEqual(Guid.Empty, createdUser?.Id);
+
+        // Stop Fortitude
+        await fortitude.StopAsync();
+    }
 }

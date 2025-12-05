@@ -417,3 +417,4 @@ FodyWeavers.xsd
 *.msm
 *.msp
 Fortitude.Server/.DS_Store
+.DS_Store
