@@ -1,5 +1,5 @@
 # Fortitude Server
-_A lightweight, fluent, middleware-powered fake server facilitating next level testing_
+_Cheat reality just enough to achieve your objective - A lightweight, fluent, middleware-powered fake server facilitating next level testing_
 
 <p align="center">
   <img src="./docs/banner.png" width="240" alt="Fortitude Banner"/>
