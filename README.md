@@ -41,6 +41,79 @@ Much like its namesake, Fortitude simulates service behavior - a controlled dece
 - **No need for external mocks**  
 - **Minimal Configuration**
 
+## Example
+
+```csharp
+    [Fact]
+    public async Task CanCreateUserWithHeadersAndQueryParams()
+    {
+        // Given
+        
+        // Start Fortitude client
+        var fortitude = new FortitudeClient(_output);
+        await fortitude.StartAsync(url: "http://localhost:5093/fortitude");
+
+        // Define handler for POST /users with header and query param checks
+        var handler = new FortitudeHandlerExtensions.FortitudeHandlerBuilder()
+            .Post()
+            .HttpRoute("/users")
+            .Header("X-Auth-Token", "secret-token")
+            .QueryParam("source", "unit-test")
+            .Body(body =>
+            {
+                var req = JsonSerializer.Deserialize<CreateUserRequest>(body ?? "");
+                return req != null && !string.IsNullOrWhiteSpace(req.Name) && req.Age > 0;
+            })
+            .Build(request =>
+            {
+                var reqObj = JsonSerializer.Deserialize<CreateUserRequest>(request.Body ?? "")!;
+                var response = new CreateUserResponse
+                {
+                    Name = reqObj.Name,
+                    Age = reqObj.Age
+                };
+
+                return new FortitudeResponse(request.RequestId)
+                {
+                    Body = JsonSerializer.Serialize(response),
+                    Status = 201
+                };
+            });
+
+        fortitude.Add(handler);
+
+        // When
+        // SUT would make this HTTP request internally,
+        // For the sake of the demo we'll make it here
+        using var http = new HttpClient();
+        var userRequest = new CreateUserRequest { Name = "Alice", Age = 30 };
+        var requestBody = new StringContent(JsonSerializer.Serialize(userRequest), Encoding.UTF8, "application/json");
+
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "http://localhost:5093/users?source=unit-test")
+        {
+            Content = requestBody
+        };
+        httpRequest.Headers.Add("X-Auth-Token", "secret-token");
+
+        var responseMessage = await http.SendAsync(httpRequest);
+        var responseBody = await responseMessage.Content.ReadAsStringAsync();
+        _output.WriteLine($"Response: {responseBody}");
+
+
+        // Then
+        var createdUser = JsonSerializer.Deserialize<CreateUserResponse>(responseBody);
+        Assert.NotNull(createdUser);
+        Assert.Equal(userRequest.Name, createdUser?.Name);
+        Assert.Equal(userRequest.Age, createdUser?.Age);
+        Assert.NotEqual(Guid.Empty, createdUser?.Id);
+
+        // Stop Fortitude
+        await fortitude.StopAsync();
+    }
+```
+
+## How it works
+
 ```
 [Test Code] 
     │
