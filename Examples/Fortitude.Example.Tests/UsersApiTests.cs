@@ -30,11 +30,10 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
             .Returns((request, response) =>
             {
                 var reqObj = request.Body.ToJson<User>()!;
-                response.Body = JsonSerializer.Serialize(new User(999, reqObj.Name, reqObj.Email));
-                response.Status = 201;
+                response.Created(new User(999, reqObj.Name, reqObj.Email));
             });
         
-        // And: The SUT (your minimal API) is running with ExternalApi.BaseUrl overridden
+        // And: The SUT (your API) is running with ExternalApi.BaseUrl overridden
         var client = factory
             .WithWebHostBuilder(builder =>
             {
@@ -42,6 +41,7 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
+                        // Configure your SUT to point at the Fortitude Server
                         ["ExternalApi:BaseUrl"] = $"{FortitudeBase}/"
                     });
                 });
@@ -49,8 +49,7 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
             .CreateClient();
 
         // WHEN: Client calls into your SUT API
-        var newUser = new User(0, expectedName, expectedEmail);
-        var response = await client.PostAsJsonAsync("/users", newUser);
+        var response = await client.PostAsJsonAsync("/users", new User(0, expectedName, expectedEmail));
 
         response.EnsureSuccessStatusCode();
 
@@ -83,10 +82,9 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
         var getHandler = fortitude.Accepts()
             .Get()
             .HttpRoute("/users")
-            .Returns((request, response) => 
+            .Returns((request, response) =>
             {
-                response.Body = JsonSerializer.Serialize(expectedUsers);
-                response.Status = 200;
+                response.Ok(expectedUsers);
             });
         
         // SUT client configured to use Fortitude as external API

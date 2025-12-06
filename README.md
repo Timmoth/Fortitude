@@ -77,11 +77,10 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
             .Returns((request, response) =>
             {
                 var reqObj = request.Body.ToJson<User>()!;
-                response.Body = JsonSerializer.Serialize(new User(999, reqObj.Name, reqObj.Email));
-                response.Status = 201;
+                response.Created(new User(999, reqObj.Name, reqObj.Email));
             });
         
-        // And: The SUT (your minimal API) is running with ExternalApi.BaseUrl overridden
+        // And: The SUT (your API) is running with ExternalApi.BaseUrl overridden
         var client = factory
             .WithWebHostBuilder(builder =>
             {
@@ -89,6 +88,7 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
+                        // Configure your SUT to point at the Fortitude Server
                         ["ExternalApi:BaseUrl"] = $"{FortitudeBase}/"
                     });
                 });
@@ -96,8 +96,7 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
             .CreateClient();
 
         // WHEN: Client calls into your SUT API
-        var newUser = new User(0, expectedName, expectedEmail);
-        var response = await client.PostAsJsonAsync("/users", newUser);
+        var response = await client.PostAsJsonAsync("/users", new User(0, expectedName, expectedEmail));
 
         response.EnsureSuccessStatusCode();
 
