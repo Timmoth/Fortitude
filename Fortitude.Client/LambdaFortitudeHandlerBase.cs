@@ -8,7 +8,7 @@ public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
     private readonly Dictionary<string, string> _headers;
     private readonly Dictionary<string, string> _queryParams;
     private readonly Func<byte[]?, bool>? _bodyPredicate;
-    private readonly Func<FortitudeRequest, Task<FortitudeResponse>> _asyncResponder;
+    private readonly Func<FortitudeRequest, FortitudeResponse, Task> _asyncResponder;
 
     // Track received requests
     private readonly ConcurrentQueue<FortitudeRequest> _receivedRequests = new();
@@ -19,7 +19,7 @@ public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
         Dictionary<string, string> headers,
         Dictionary<string, string> queryParams,
         Func<byte[]?, bool>? bodyPredicate,
-        Func<FortitudeRequest, Task<FortitudeResponse>> asyncResponder)
+        Func<FortitudeRequest, FortitudeResponse, Task> asyncResponder)
     {
         _route = route;
         _headers = headers;
@@ -34,8 +34,12 @@ public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
         Dictionary<string, string> headers,
         Dictionary<string, string> queryParams,
         Func<byte[]?, bool>? bodyPredicate,
-        Func<FortitudeRequest, FortitudeResponse> responder)
-        : this(methods, route, headers, queryParams, bodyPredicate, req => Task.FromResult(responder(req)))
+        Action<FortitudeRequest, FortitudeResponse> responder)
+        : this(methods, route, headers, queryParams, bodyPredicate, (req, res) =>
+        {
+            responder(req, res);
+            return Task.CompletedTask;
+        })
     { }
 
     public override bool Matches(FortitudeRequest req)
@@ -82,7 +86,9 @@ public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
             }
         }
 
-        return await _asyncResponder(req);
+        var response = new FortitudeResponse(req.RequestId);
+        await _asyncResponder(req, response);
+        return response;
     }
 
     // -----------------------------

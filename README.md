@@ -1,5 +1,5 @@
 # Fortitude Server - WIP
-_A lightweight, fluent, middleware-powered fake server for advanced HTTP testing_
+_Fortitude spins up a local mock server so you can fluently configure HTTP routes, responses, and test scenarios directly from your .NET tests._
 
 <p align="center">
   <img src="./docs/banner.png" width="240" alt="Fortitude Banner"/>
@@ -53,33 +53,23 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
     public async Task CreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
         // Given: Fortitude fake server simulating the external API
-        var fortitude = new FortitudeClient(output);
+        var fortitude = await FortitudeServer.ConnectAsync(FortitudeBase, output);
+
         var expectedName = "Alice";
         var expectedEmail = "alice@example.com";
 
         // Fake external handler: POST /users
-        var handler = fortitude.For()
+        var handler = fortitude.Accepts()
             .Post()
             .HttpRoute("/users")
-            .Body(body =>
+            .Body(body => body.ToJson<User>()?.Email == expectedEmail)
+            .Returns((request, response) =>
             {
-                var req = JsonSerializer.Deserialize<User>(body, _defaultOptions);
-                return req != null && req.Email == expectedEmail;
-            })
-            .Build(request =>
-            {
-                var reqObj = JsonSerializer.Deserialize<User>(request.Body, _defaultOptions);
-                var response = new User(999, reqObj.Name, reqObj.Email);
-
-                return new FortitudeResponse(request.RequestId)
-                {
-                    Body = JsonSerializer.Serialize(response),
-                    Status = 201
-                };
+                var reqObj = request.Body.ToJson<User>()!;
+                response.Body = JsonSerializer.Serialize(new User(999, reqObj.Name, reqObj.Email));
+                response.Status = 201;
             });
-
-        await fortitude.StartAsync($"{FortitudeBase}/fortitude");
-
+        
         // And: The SUT (your minimal API) is running with ExternalApi.BaseUrl overridden
         var client = factory
             .WithWebHostBuilder(builder =>

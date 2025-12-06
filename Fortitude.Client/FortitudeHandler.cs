@@ -2,15 +2,24 @@ namespace Fortitude.Client;
 
 public static class FortitudeHandler
 {
-    public static FortitudeHandlerBuilder For(this FortitudeClient client)
+    public static FortitudeHandlerBuilder Accepts(this FortitudeClient client)
     {
         var handler = new FortitudeHandlerBuilder(client);
         return handler;
     }
+    
 
-public class FortitudeHandlerBuilder(FortitudeClient fortitudeClient)
+public class FortitudeHandlerBuilder
 {
-    private readonly FortitudeClient client = fortitudeClient;
+    public FortitudeHandlerBuilder(FortitudeClient fortitudeClient, string? method = null)
+    {
+        client = fortitudeClient;
+        if (!string.IsNullOrEmpty(method))
+        {
+            Method(method);
+        }
+    }
+    private readonly FortitudeClient client;
     private HashSet<string> _methods = new();
     private string? _route;
     private Dictionary<string, string> _headers = new(StringComparer.OrdinalIgnoreCase);
@@ -61,7 +70,7 @@ public class FortitudeHandlerBuilder(FortitudeClient fortitudeClient)
         return this;
     }
     
-    public FortitudeHandlerBase Build(Func<FortitudeRequest, FortitudeResponse> responder)
+    public FortitudeHandlerBase Returns(Action<FortitudeRequest, FortitudeResponse> responder)
     {
         var handler = new LambdaFortitudeHandlerBase(
             _methods,
@@ -74,7 +83,7 @@ public class FortitudeHandlerBuilder(FortitudeClient fortitudeClient)
         return handler;
     }
 
-    public FortitudeHandlerBase Build(Func<FortitudeRequest, Task<FortitudeResponse>> asyncResponder)
+    public FortitudeHandlerBase Returns(Func<FortitudeRequest, FortitudeResponse, Task> asyncResponder)
     {
         var handler = new LambdaFortitudeHandlerBase(
             _methods,

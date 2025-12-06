@@ -23,16 +23,15 @@ public class FortitudeClientTests
     public async Task Test1()
     {
         // Given
-        var snide = new FortitudeClient(_output);
-        await snide.StartAsync(url: $"{_fortitudeBaseUrl}/fortitude");
+        var fortitude = await FortitudeServer.ConnectAsync(_fortitudeBaseUrl, _output);
 
         var fakeUser = new FakeUser();
-        var handler = snide.For()
+        var handler = fortitude.Accepts()
             .Get()
             .HttpRoute($"/users/{fakeUser.Id}")
-            .Build(r =>  new FortitudeResponse(r.RequestId)
+            .Returns((req, res) =>
             {
-                Body = System.Text.Json.JsonSerializer.Serialize(fakeUser)
+                res.Body = System.Text.Json.JsonSerializer.Serialize(fakeUser);
             });
         
         using var http = new HttpClient();
@@ -42,7 +41,7 @@ public class FortitudeClientTests
         _output.WriteLine($"Response: {body}");
 
         // Then
-        await snide.StopAsync();
+        await fortitude.StopAsync();
         var returnedUser = System.Text.Json.JsonSerializer.Deserialize<FakeUser>(body);
         Assert.Equal(fakeUser.Id, returnedUser?.Id);
 
@@ -68,11 +67,10 @@ public class FortitudeClientTests
         // Given
         
         // Start Fortitude client
-        var fortitude = new FortitudeClient(_output);
-        await fortitude.StartAsync(url: $"{_fortitudeBaseUrl}/fortitude");
+        var fortitude = await FortitudeServer.ConnectAsync(_fortitudeBaseUrl, _output);
 
         // Define handler for POST /users with header and query param checks
-        var handler = fortitude.For()
+        var handler = fortitude.Accepts()
             .Post()
             .HttpRoute("/users")
             .Header("X-Auth-Token", "secret-token")
@@ -82,20 +80,17 @@ public class FortitudeClientTests
                 var req = JsonSerializer.Deserialize<CreateUserRequest>(body);
                 return req != null && !string.IsNullOrWhiteSpace(req.Name) && req.Age > 0;
             })
-            .Build(request =>
+            .Returns((req, res) =>
             {
-                var reqObj = JsonSerializer.Deserialize<CreateUserRequest>(request.Body)!;
+                var reqObj = JsonSerializer.Deserialize<CreateUserRequest>(req.Body)!;
                 var response = new CreateUserResponse
                 {
                     Name = reqObj.Name,
                     Age = reqObj.Age
                 };
 
-                return new FortitudeResponse(request.RequestId)
-                {
-                    Body = JsonSerializer.Serialize(response),
-                    Status = 201
-                };
+                res.Body = JsonSerializer.Serialize(response);
+                res.Status = 201;
             });
         
         // When

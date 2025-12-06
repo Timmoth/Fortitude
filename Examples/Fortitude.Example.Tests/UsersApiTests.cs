@@ -12,43 +12,28 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
     : IClassFixture<WebApplicationFactory<Program>>
 {
     private const string FortitudeBase = "http://localhost:5093";
-
-    private readonly JsonSerializerOptions _defaultOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
     
     [Fact]
     public async Task CreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
         // Given: Fortitude fake server simulating the external API
-        var fortitude = new FortitudeClient(output);
+        var fortitude = await FortitudeServer.ConnectAsync(FortitudeBase, output);
+
         var expectedName = "Alice";
         var expectedEmail = "alice@example.com";
 
         // Fake external handler: POST /users
-        var handler = fortitude.For()
+        var handler = fortitude.Accepts()
             .Post()
             .HttpRoute("/users")
-            .Body(body =>
+            .Body(body => body.ToJson<User>()?.Email == expectedEmail)
+            .Returns((request, response) =>
             {
-                var req = JsonSerializer.Deserialize<User>(body, _defaultOptions);
-                return req != null && req.Email == expectedEmail;
-            })
-            .Build(request =>
-            {
-                var reqObj = JsonSerializer.Deserialize<User>(request.Body, _defaultOptions);
-                var response = new User(999, reqObj.Name, reqObj.Email);
-
-                return new FortitudeResponse(request.RequestId)
-                {
-                    Body = JsonSerializer.Serialize(response),
-                    Status = 201
-                };
+                var reqObj = request.Body.ToJson<User>()!;
+                response.Body = JsonSerializer.Serialize(new User(999, reqObj.Name, reqObj.Email));
+                response.Status = 201;
             });
-
-        await fortitude.StartAsync($"{FortitudeBase}/fortitude");
-
+        
         // And: The SUT (your minimal API) is running with ExternalApi.BaseUrl overridden
         var client = factory
             .WithWebHostBuilder(builder =>
@@ -93,15 +78,15 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
         };
 
         // Start Fortitude fake server
-        var fortitude = new FortitudeClient(output);
+        var fortitude = await FortitudeServer.ConnectAsync(FortitudeBase, output);
     
-        var getHandler = fortitude.For()
+        var getHandler = fortitude.Accepts()
             .Get()
             .HttpRoute("/users")
-            .Build(request => new FortitudeResponse(request.RequestId)
+            .Returns((request, response) => 
             {
-                Body = JsonSerializer.Serialize(expectedUsers),
-                Status = 200
+                response.Body = JsonSerializer.Serialize(expectedUsers);
+                response.Status = 200;
             });
 
         await fortitude.StartAsync($"{FortitudeBase}/fortitude");
