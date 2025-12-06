@@ -81,12 +81,12 @@ public class FortitudeClientTests
             .QueryParam("source", "unit-test")
             .Body(body =>
             {
-                var req = JsonSerializer.Deserialize<CreateUserRequest>(body ?? "");
+                var req = JsonSerializer.Deserialize<CreateUserRequest>(body);
                 return req != null && !string.IsNullOrWhiteSpace(req.Name) && req.Age > 0;
             })
             .Build(request =>
             {
-                var reqObj = JsonSerializer.Deserialize<CreateUserRequest>(request.Body ?? "")!;
+                var reqObj = JsonSerializer.Deserialize<CreateUserRequest>(request.Body)!;
                 var response = new CreateUserResponse
                 {
                     Name = reqObj.Name,

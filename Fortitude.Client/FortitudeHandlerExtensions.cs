@@ -10,7 +10,7 @@ public class FortitudeHandlerBuilder
     private string? _route;
     private Dictionary<string, string> _headers = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _queryParams = new(StringComparer.OrdinalIgnoreCase);
-    private Func<string?, bool>? _bodyPredicate;
+    private Func<byte[]?, bool>? _bodyPredicate;
     
     public FortitudeHandlerBuilder Method(string method)
     {
@@ -50,7 +50,7 @@ public class FortitudeHandlerBuilder
         return this;
     }
     
-    public FortitudeHandlerBuilder Body(Func<string?, bool> predicate)
+    public FortitudeHandlerBuilder Body(Func<byte[]?, bool> predicate)
     {
         _bodyPredicate = predicate;
         return this;

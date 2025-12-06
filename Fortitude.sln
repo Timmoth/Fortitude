@@ -6,6 +6,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Client", "Fortitu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Tests", "Fortitude.Tests\Fortitude.Tests.csproj", "{16D5E474-EBF8-4CA6-864B-1797559F6772}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Example", "Example", "{021A4559-F978-4F66-8047-134B66A5E209}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Example.Tests", "Fortitude.Example.Tests\Fortitude.Example.Tests.csproj", "{C997D9EC-6BD0-485A-96B4-D4BA554D3D47}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Example.Api", "Fortitude.Example.Api\Fortitude.Example.Api.csproj", "{D18B5165-29DA-4AE0-87FF-F4BD73CA13C2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +30,17 @@ Global
 		{16D5E474-EBF8-4CA6-864B-1797559F6772}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{16D5E474-EBF8-4CA6-864B-1797559F6772}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{16D5E474-EBF8-4CA6-864B-1797559F6772}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C997D9EC-6BD0-485A-96B4-D4BA554D3D47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C997D9EC-6BD0-485A-96B4-D4BA554D3D47}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C997D9EC-6BD0-485A-96B4-D4BA554D3D47}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C997D9EC-6BD0-485A-96B4-D4BA554D3D47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D18B5165-29DA-4AE0-87FF-F4BD73CA13C2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D18B5165-29DA-4AE0-87FF-F4BD73CA13C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D18B5165-29DA-4AE0-87FF-F4BD73CA13C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D18B5165-29DA-4AE0-87FF-F4BD73CA13C2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C997D9EC-6BD0-485A-96B4-D4BA554D3D47} = {021A4559-F978-4F66-8047-134B66A5E209}
+		{D18B5165-29DA-4AE0-87FF-F4BD73CA13C2} = {021A4559-F978-4F66-8047-134B66A5E209}
 	EndGlobalSection
 EndGlobal

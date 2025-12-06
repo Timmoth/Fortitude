@@ -20,7 +20,7 @@ public class FortitudeMiddleware(
             await next(ctx);
             return;
         }
-
+        
         // Build request from HttpContext
         var requestId = Guid.NewGuid();
         FortitudeRequest req;

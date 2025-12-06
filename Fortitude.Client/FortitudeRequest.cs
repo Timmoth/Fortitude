@@ -34,7 +34,7 @@ public class FortitudeRequest
     public Dictionary<string, string> Cookies { get; set; } = new();
 
     [JsonPropertyName("body")]
-    public string? Body { get; set; }
+    public byte[]? Body { get; set; }
 
     /// <summary>
     /// Builds a FortitudeRequest from an HttpContext
@@ -45,15 +45,17 @@ public class FortitudeRequest
             throw new ArgumentNullException(nameof(ctx.Request));
 
         // Read body if present
-        string? body = null;
-        if (ctx.Request.ContentLength > 0)
-        {
-            ctx.Request.EnableBuffering(); // allow reading multiple times
-            using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8, leaveOpen: true);
-            body = await reader.ReadToEndAsync();
-            ctx.Request.Body.Position = 0; // reset stream for downstream
-        }
+        byte[]? bodyBytes = null;
 
+        ctx.Request.EnableBuffering();
+
+        using (var ms = new MemoryStream())
+        {
+            await ctx.Request.Body.CopyToAsync(ms);
+            bodyBytes = ms.ToArray();
+            ctx.Request.Body.Position = 0;
+        }
+        
         // Convert headers to Dictionary<string,string[]>
         var headers = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
         foreach (var h in ctx.Request.Headers)
@@ -90,7 +92,7 @@ public class FortitudeRequest
             Headers = headers,
             Query = query,
             Cookies = cookies,
-            Body = body
+            Body = bodyBytes
         };
     }
 }

@@ -5,14 +5,14 @@ public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
     private readonly string? _route;
     private readonly Dictionary<string, string> _headers;
     private readonly Dictionary<string, string> _queryParams;
-    private readonly Func<string?, bool>? _bodyPredicate;
+    private readonly Func<byte[]?, bool>? _bodyPredicate;
     private readonly Func<FortitudeRequest, Task<FortitudeResponse>> _asyncResponder;
 
     public LambdaFortitudeHandlerBase(IEnumerable<string> methods,
         string? route,
         Dictionary<string, string> headers,
         Dictionary<string, string> queryParams,
-        Func<string?, bool>? bodyPredicate,
+        Func<byte[]?, bool>? bodyPredicate,
         Func<FortitudeRequest, Task<FortitudeResponse>> asyncResponder)
     {
         _route = route;
@@ -27,7 +27,7 @@ public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
         string? route,
         Dictionary<string, string> headers,
         Dictionary<string, string> queryParams,
-        Func<string?, bool>? bodyPredicate,
+        Func<byte[]?, bool>? bodyPredicate,
         Func<FortitudeRequest, FortitudeResponse> responder)
     {
         _route = route;
