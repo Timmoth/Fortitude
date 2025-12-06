@@ -179,3 +179,6 @@ The Allies used:
 All designed to **simulate real military forces that didn’t actually exist**.
  
 Much like its namesake, Fortitude simulates service behavior - a controlled deception that empowers your testing strategy.
+
+## Interested in getting involved?
+We're looking for collaborators to help extend the core server and or build lightweight clients (JS/TS, Python, Java, etc.) — if you’re interested, feel free to reach out or open an issue!
