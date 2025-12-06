@@ -3,6 +3,7 @@ using System.Text.Json;
 using Fortitude.Client;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.VisualStudio.TestPlatform.TestHost;
 using Xunit.Abstractions;
 
 namespace Fortitude.Example.Api;
@@ -12,6 +13,11 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
 {
     private const string FortitudeBase = "http://localhost:5093";
 
+    private readonly JsonSerializerOptions _defaultOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+    
     [Fact]
     public async Task CreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
@@ -21,23 +27,17 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
         var expectedEmail = "alice@example.com";
 
         // Fake external handler: POST /users
-        var handler = new FortitudeHandlerExtensions.FortitudeHandlerBuilder()
+        var handler = fortitude.For()
             .Post()
             .HttpRoute("/users")
             .Body(body =>
             {
-                var req = JsonSerializer.Deserialize<User>(body, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var req = JsonSerializer.Deserialize<User>(body, _defaultOptions);
                 return req != null && req.Email == expectedEmail;
             })
             .Build(request =>
             {
-                var reqObj = JsonSerializer.Deserialize<User>(request.Body, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var reqObj = JsonSerializer.Deserialize<User>(request.Body, _defaultOptions);
                 var response = new User(999, reqObj.Name, reqObj.Email);
 
                 return new FortitudeResponse(request.RequestId)
@@ -47,7 +47,6 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
                 };
             });
 
-        fortitude.Add(handler);
         await fortitude.StartAsync($"{FortitudeBase}/fortitude");
 
         // And: The SUT (your minimal API) is running with ExternalApi.BaseUrl overridden
@@ -71,12 +70,13 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
         response.EnsureSuccessStatusCode();
 
         var created = await response.Content.ReadFromJsonAsync<User>();
-
+        
         // Then: Response should be what Fortitude returned
         Assert.NotNull(created);
         Assert.Equal(999, created!.Id); // ID assigned by external service
         Assert.Equal(expectedName, created.Name);
         Assert.Equal(expectedEmail, created.Email);
+        Assert.Single(handler.ReceivedRequests); // Assert only a single request was made to the handler
 
         // Cleanup
         await fortitude.StopAsync();
@@ -95,7 +95,7 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
         // Start Fortitude fake server
         var fortitude = new FortitudeClient(output);
     
-        var getHandler = new FortitudeHandlerExtensions.FortitudeHandlerBuilder()
+        var getHandler = fortitude.For()
             .Get()
             .HttpRoute("/users")
             .Build(request => new FortitudeResponse(request.RequestId)
@@ -104,7 +104,6 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
                 Status = 200
             });
 
-        fortitude.Add(getHandler);
         await fortitude.StartAsync($"{FortitudeBase}/fortitude");
 
         // SUT client configured to use Fortitude as external API

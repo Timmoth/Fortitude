@@ -21,7 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Fortitude.Client\Fortitude.Client.csproj" />
+      <ProjectReference Include="..\..\Fortitude.Client\Fortitude.Client.csproj" />
       <ProjectReference Include="..\Fortitude.Example.Api\Fortitude.Example.Api.csproj" />
     </ItemGroup>
 

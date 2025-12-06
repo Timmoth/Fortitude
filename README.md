@@ -17,23 +17,6 @@ Fortitude enables you to:
 
 Fortitude acts as a highly flexible mock server for your tests — returning exactly what you define, when you define it. Your SUT thinks it’s calling real services, but your tests are in total control.
 
-## **Operation Fortitude in history**
-
-The name **Fortitude** is a deliberate nod to **Operation Fortitude**, the famed WW2 deception campaign used by the Allies in 1944.
-
-Operation Fortitude was part of the larger deception strategy preceding D-Day.  
-Its purpose was to convince German intelligence that the invasion would occur in **Pas-de-Calais** instead of Normandy.
-
-The Allies used:
-- Inflatable tanks  
-- Wooden aircraft  
-- Entire ghost armies  
-
-All designed to **simulate real military forces that didn’t actually exist**.
- 
-Much like its namesake, Fortitude simulates service behavior - a controlled deception that empowers your testing strategy.
-
-
 ## Key Features
 - **Ideal for black-box testing**  
 - **Fluent API** for defining fake routes, responses, and behaviors  
@@ -53,35 +36,48 @@ To run the container and expose port 8080:
 
 ```docker run -p 5093:8080 aptacode/fortitude-server:latest```
 
+### Example
+
+An example project / tests can be in the /Examples directory.
+
+
+To run the example tests:
+```bash
+# Run the Fortitude Server Project
+dotnet run --project ./Fortitude.Server/
+
+# Or the docker container
+docker run -p 5093:8080 aptacode/fortitude-server:latest
+
+# Run the tests
+dotnet test ./Examples/Fortitude.Example.Tests
+
+```
+
+Here is a sample Test which connects to the Fortitude Server and intercepts request coming from the SUT
+
 ```csharp
     [Fact]
-    public async Task CanCreateUserWithHeadersAndQueryParams()
+    public async Task CreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
-        // Given
-        
-        // Start Fortitude client
-        var fortitude = new FortitudeClient(_output);
-        await fortitude.StartAsync(url: "http://localhost:5093/fortitude");
+        // Given: Fortitude fake server simulating the external API
+        var fortitude = new FortitudeClient(output);
+        var expectedName = "Alice";
+        var expectedEmail = "alice@example.com";
 
-        // Define handler for POST /users with header and query param checks
-        var handler = new FortitudeHandlerExtensions.FortitudeHandlerBuilder()
+        // Fake external handler: POST /users
+        var handler = fortitude.For()
             .Post()
             .HttpRoute("/users")
-            .Header("X-Auth-Token", "secret-token")
-            .QueryParam("source", "unit-test")
             .Body(body =>
             {
-                var req = JsonSerializer.Deserialize<CreateUserRequest>(body ?? "");
-                return req != null && !string.IsNullOrWhiteSpace(req.Name) && req.Age > 0;
+                var req = JsonSerializer.Deserialize<User>(body, _defaultOptions);
+                return req != null && req.Email == expectedEmail;
             })
             .Build(request =>
             {
-                var reqObj = JsonSerializer.Deserialize<CreateUserRequest>(request.Body ?? "")!;
-                var response = new CreateUserResponse
-                {
-                    Name = reqObj.Name,
-                    Age = reqObj.Age
-                };
+                var reqObj = JsonSerializer.Deserialize<User>(request.Body, _defaultOptions);
+                var response = new User(999, reqObj.Name, reqObj.Email);
 
                 return new FortitudeResponse(request.RequestId)
                 {
@@ -90,34 +86,38 @@ To run the container and expose port 8080:
                 };
             });
 
-        fortitude.Add(handler);
+        await fortitude.StartAsync($"{FortitudeBase}/fortitude");
 
-        // When
-        // SUT would make this HTTP request internally,
-        // For the sake of the demo we'll make it here
-        using var http = new HttpClient();
-        var userRequest = new CreateUserRequest { Name = "Alice", Age = 30 };
-        var requestBody = new StringContent(JsonSerializer.Serialize(userRequest), Encoding.UTF8, "application/json");
+        // And: The SUT (your minimal API) is running with ExternalApi.BaseUrl overridden
+        var client = factory
+            .WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureAppConfiguration((ctx, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["ExternalApi:BaseUrl"] = $"{FortitudeBase}/"
+                    });
+                });
+            })
+            .CreateClient();
 
-        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "http://localhost:5093/users?source=unit-test")
-        {
-            Content = requestBody
-        };
-        httpRequest.Headers.Add("X-Auth-Token", "secret-token");
+        // WHEN: Client calls into your SUT API
+        var newUser = new User(0, expectedName, expectedEmail);
+        var response = await client.PostAsJsonAsync("/users", newUser);
 
-        var responseMessage = await http.SendAsync(httpRequest);
-        var responseBody = await responseMessage.Content.ReadAsStringAsync();
-        _output.WriteLine($"Response: {responseBody}");
+        response.EnsureSuccessStatusCode();
 
+        var created = await response.Content.ReadFromJsonAsync<User>();
+        
+        // Then: Response should be what Fortitude returned
+        Assert.NotNull(created);
+        Assert.Equal(999, created!.Id); // ID assigned by external service
+        Assert.Equal(expectedName, created.Name);
+        Assert.Equal(expectedEmail, created.Email);
+        Assert.Single(handler.ReceivedRequests); // Assert only a single request was made to the handler
 
-        // Then
-        var createdUser = JsonSerializer.Deserialize<CreateUserResponse>(responseBody);
-        Assert.NotNull(createdUser);
-        Assert.Equal(userRequest.Name, createdUser?.Name);
-        Assert.Equal(userRequest.Age, createdUser?.Age);
-        Assert.NotEqual(Guid.Empty, createdUser?.Id);
-
-        // Stop Fortitude
+        // Cleanup
         await fortitude.StopAsync();
     }
 ```
@@ -171,3 +171,19 @@ To run the container and expose port 8080:
     ▼
 [End]
 ```
+
+## **Operation Fortitude in history**
+
+The name **Fortitude** is a deliberate nod to **Operation Fortitude**, the famed WW2 deception campaign used by the Allies in 1944.
+
+Operation Fortitude was part of the larger deception strategy preceding D-Day.  
+Its purpose was to convince German intelligence that the invasion would occur in **Pas-de-Calais** instead of Normandy.
+
+The Allies used:
+- Inflatable tanks  
+- Wooden aircraft  
+- Entire ghost armies  
+
+All designed to **simulate real military forces that didn’t actually exist**.
+ 
+Much like its namesake, Fortitude simulates service behavior - a controlled deception that empowers your testing strategy.

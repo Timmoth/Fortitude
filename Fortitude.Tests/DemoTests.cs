@@ -27,16 +27,14 @@ public class FortitudeClientTests
         await snide.StartAsync(url: $"{_fortitudeBaseUrl}/fortitude");
 
         var fakeUser = new FakeUser();
-        var handler = new FortitudeHandlerExtensions.FortitudeHandlerBuilder()
+        var handler = snide.For()
             .Get()
             .HttpRoute($"/users/{fakeUser.Id}")
             .Build(r =>  new FortitudeResponse(r.RequestId)
             {
                 Body = System.Text.Json.JsonSerializer.Serialize(fakeUser)
             });
-
-        snide.Add(handler);
-
+        
         using var http = new HttpClient();
         var response = await http.GetAsync($"{_fortitudeBaseUrl}/users/{fakeUser.Id}");
 
@@ -74,7 +72,7 @@ public class FortitudeClientTests
         await fortitude.StartAsync(url: $"{_fortitudeBaseUrl}/fortitude");
 
         // Define handler for POST /users with header and query param checks
-        var handler = new FortitudeHandlerExtensions.FortitudeHandlerBuilder()
+        var handler = fortitude.For()
             .Post()
             .HttpRoute("/users")
             .Header("X-Auth-Token", "secret-token")
@@ -99,9 +97,7 @@ public class FortitudeClientTests
                     Status = 201
                 };
             });
-
-        fortitude.Add(handler);
-
+        
         // When
         // SUT would make this HTTP request internally,
         // For the sake of the demo we'll make it here

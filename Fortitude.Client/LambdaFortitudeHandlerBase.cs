@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace Fortitude.Client;
 public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
 {
@@ -7,6 +9,10 @@ public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
     private readonly Dictionary<string, string> _queryParams;
     private readonly Func<byte[]?, bool>? _bodyPredicate;
     private readonly Func<FortitudeRequest, Task<FortitudeResponse>> _asyncResponder;
+
+    // Track received requests
+    private readonly ConcurrentQueue<FortitudeRequest> _receivedRequests = new();
+    private readonly List<TaskCompletionSource<FortitudeRequest>> _waiters = new();
 
     public LambdaFortitudeHandlerBase(IEnumerable<string> methods,
         string? route,
@@ -29,15 +35,9 @@ public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
         Dictionary<string, string> queryParams,
         Func<byte[]?, bool>? bodyPredicate,
         Func<FortitudeRequest, FortitudeResponse> responder)
-    {
-        _route = route;
-        _headers = headers;
-        _queryParams = queryParams;
-        _bodyPredicate = bodyPredicate;
-        _asyncResponder = req => Task.FromResult(responder(req));
+        : this(methods, route, headers, queryParams, bodyPredicate, req => Task.FromResult(responder(req)))
+    { }
 
-        _methods = new HashSet<string>(methods, StringComparer.OrdinalIgnoreCase);
-    }
     public override bool Matches(FortitudeRequest req)
     {
         if (_methods.Any() && !_methods.Contains(req.Method))
@@ -58,15 +58,70 @@ public class LambdaFortitudeHandlerBase : FortitudeHandlerBase
                 return false;
         }
 
-
         if (_bodyPredicate != null && !_bodyPredicate(req.Body))
             return false;
 
         return true;
     }
 
-    public override Task<FortitudeResponse> BuildResponse(FortitudeRequest req)
+    public override async Task<FortitudeResponse> BuildResponse(FortitudeRequest req)
     {
-        return _asyncResponder(req);
+        // Track the request
+        _receivedRequests.Enqueue(req);
+
+        // Notify any waiters
+        lock (_waiters)
+        {
+            foreach (var waiter in _waiters.ToList())
+            {
+                if (!waiter.Task.IsCompleted && Matches(req))
+                {
+                    waiter.SetResult(req);
+                    _waiters.Remove(waiter);
+                }
+            }
+        }
+
+        return await _asyncResponder(req);
     }
+
+    // -----------------------------
+    // New tracking / assertion helpers
+    // -----------------------------
+
+    public override IReadOnlyList<FortitudeRequest> ReceivedRequests => _receivedRequests.ToArray();
+
+    /// <summary>
+    /// Wait asynchronously for a matching request to be received.
+    /// </summary>
+    public override Task<FortitudeRequest?> WaitForRequestAsync(int timeoutMs = 5000, Func<FortitudeRequest, bool>? predicate = null)
+    {
+        var tcs = new TaskCompletionSource<FortitudeRequest?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // Check if we already have a matching request
+        var existing = _receivedRequests.FirstOrDefault(r => predicate?.Invoke(r) ?? true);
+        if (existing != null)
+        {
+            tcs.SetResult(existing);
+            return tcs.Task;
+        }
+
+        // Otherwise wait
+        lock (_waiters)
+        {
+            _waiters.Add(tcs);
+        }
+
+        // Setup timeout
+        var cts = new CancellationTokenSource(timeoutMs);
+        cts.Token.Register(() => tcs.TrySetResult(null));
+
+        return tcs.Task;
+    }
+
+    /// <summary>
+    /// Simple assertion helper to check if at least one matching request was received.
+    /// </summary>
+    public bool HasReceived(Func<FortitudeRequest, bool>? predicate = null) =>
+        _receivedRequests.Any(r => predicate?.Invoke(r) ?? true);
 }
