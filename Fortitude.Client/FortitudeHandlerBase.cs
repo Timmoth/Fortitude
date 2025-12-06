@@ -1,20 +1,162 @@
 using System.Collections.Concurrent;
 
-namespace Fortitude.Client;
-
-public abstract class FortitudeHandlerBase
+namespace Fortitude.Client
 {
-    public abstract bool Matches(FortitudeRequest request);
-    public abstract Task<FortitudeResponse> BuildResponse(FortitudeRequest req);
-
-    // New abstract methods for testing/assertions
-    public abstract IReadOnlyList<FortitudeRequest> ReceivedRequests { get; }
-
     /// <summary>
-    /// Waits asynchronously until a matching request has been received or times out.
+    /// A robust Fortitude request handler that matches requests, tracks received requests,
+    /// and supports synchronous or asynchronous responders.
     /// </summary>
-    /// <param name="timeoutMs">Timeout in milliseconds</param>
-    /// <param name="predicate">Optional predicate to filter the requests</param>
-    /// <returns>The matching request, or null if timeout</returns>
-    public abstract Task<FortitudeRequest?> WaitForRequestAsync(int timeoutMs = 5000, Func<FortitudeRequest, bool>? predicate = null);
+    public class FortitudeHandler
+    {
+        private readonly HashSet<string> _methods;
+        private readonly string? _route;
+        private readonly Dictionary<string, string> _headers;
+        private readonly Dictionary<string, string> _queryParams;
+        private readonly Func<byte[]?, bool>? _bodyPredicate;
+        private readonly Func<FortitudeRequest, FortitudeResponse, Task> _asyncResponder;
+
+        private readonly ConcurrentQueue<FortitudeRequest> _receivedRequests = new();
+        private readonly List<TaskCompletionSource<FortitudeRequest?>> _waiters = new();
+        private readonly object _waitersLock = new();
+
+        /// <summary>
+        /// Initializes a new instance of <see cref="FortitudeHandler"/> with an asynchronous responder.
+        /// </summary>
+        public FortitudeHandler(IEnumerable<string>? methods,
+            string? route,
+            Dictionary<string, string>? headers,
+            Dictionary<string, string>? queryParams,
+            Func<byte[]?, bool>? bodyPredicate,
+            Func<FortitudeRequest, FortitudeResponse, Task> asyncResponder)
+        {
+            _methods = new HashSet<string>(methods ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            _route = route;
+            _headers = headers ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            _queryParams = queryParams ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            _bodyPredicate = bodyPredicate;
+            _asyncResponder = asyncResponder ?? throw new ArgumentNullException(nameof(asyncResponder));
+        }
+
+        /// <summary>
+        /// Initializes a new instance of <see cref="FortitudeHandler"/> with a synchronous responder.
+        /// </summary>
+        public FortitudeHandler(IEnumerable<string>? methods,
+            string? route,
+            Dictionary<string, string>? headers,
+            Dictionary<string, string>? queryParams,
+            Func<byte[]?, bool>? bodyPredicate,
+            Action<FortitudeRequest, FortitudeResponse> responder)
+            : this(methods, route, headers, queryParams, bodyPredicate,
+                  (req, res) =>
+                  {
+                      responder?.Invoke(req, res);
+                      return Task.CompletedTask;
+                  })
+        { }
+
+        /// <summary>
+        /// Checks if this handler matches the given request.
+        /// </summary>
+        public bool Matches(FortitudeRequest req)
+        {
+            if (_methods.Any() && !_methods.Contains(req.Method)) return false;
+            if (_route != null && !_route.Equals(req.Route, StringComparison.OrdinalIgnoreCase)) return false;
+
+            foreach (var header in _headers)
+            {
+                if (!req.Headers.TryGetValue(header.Key, out var values) || !values.Contains(header.Value))
+                    return false;
+            }
+
+            foreach (var qp in _queryParams)
+            {
+                if (!req.Query.TryGetValue(qp.Key, out var values) || !values.Contains(qp.Value))
+                    return false;
+            }
+
+            if (_bodyPredicate != null && !_bodyPredicate(req.Body)) return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Handles the request, invokes the responder, tracks it, and notifies waiters.
+        /// </summary>
+        public async Task<FortitudeResponse> HandleRequestAsync(FortitudeRequest req)
+        {
+            if (req == null) throw new ArgumentNullException(nameof(req));
+
+            _receivedRequests.Enqueue(req);
+            NotifyWaiters(req);
+
+            var response = new FortitudeResponse(req.RequestId);
+
+            try
+            {
+                await _asyncResponder(req, response).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Error executing responder for request {req.RequestId}", ex);
+            }
+
+            return response;
+        }
+
+        /// <summary>
+        /// Thread-safe list of received requests.
+        /// </summary>
+        public IReadOnlyList<FortitudeRequest> ReceivedRequests => _receivedRequests.ToArray();
+
+        /// <summary>
+        /// Returns true if at least one matching request has been received.
+        /// </summary>
+        public bool HasReceived(Func<FortitudeRequest, bool>? predicate = null) =>
+            _receivedRequests.Any(r => predicate?.Invoke(r) ?? true);
+
+        /// <summary>
+        /// Waits asynchronously for a matching request or until the timeout expires.
+        /// </summary>
+        /// <param name="timeoutMs">Timeout in milliseconds.</param>
+        /// <param name="predicate">Optional predicate to filter requests.</param>
+        /// <returns>The matching request, or null if timeout expires.</returns>
+        public Task<FortitudeRequest?> WaitForRequestAsync(int timeoutMs = 5000, Func<FortitudeRequest, bool>? predicate = null)
+        {
+            if (timeoutMs <= 0) throw new ArgumentOutOfRangeException(nameof(timeoutMs), "Timeout must be greater than zero.");
+
+            var existing = _receivedRequests.FirstOrDefault(r => predicate?.Invoke(r) ?? true);
+            if (existing != null)
+                return Task.FromResult(existing);
+
+            var tcs = new TaskCompletionSource<FortitudeRequest?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            var cts = new CancellationTokenSource(timeoutMs);
+            cts.Token.Register(() => tcs.TrySetResult(null));
+
+            lock (_waitersLock)
+            {
+                _waiters.Add(tcs);
+            }
+
+            return tcs.Task;
+        }
+
+        /// <summary>
+        /// Notifies waiting tasks of a newly received request.
+        /// </summary>
+        private void NotifyWaiters(FortitudeRequest req)
+        {
+            lock (_waitersLock)
+            {
+                foreach (var waiter in _waiters.ToList())
+                {
+                    if (!waiter.Task.IsCompleted && Matches(req))
+                    {
+                        waiter.TrySetResult(req);
+                        _waiters.Remove(waiter);
+                    }
+                }
+            }
+        }
+    }
 }

@@ -5,6 +5,20 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>Fortitude.Client</RootNamespace>
+
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <PackageId>Fortitude</PackageId>
+        <PackageVersion>10.0.0</PackageVersion>
+        <Authors>Tim Jones</Authors>
+        <Company>Aptacode</Company>
+        <Description>A lightweight, fluent, middleware-powered fake server for advanced HTTP testing</Description>
+        <PackageProjectUrl>https://github.com/Timmoth/Fortitude</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/Timmoth/Fortitude</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>Testing Mock Fake Mocking Http</PackageTags>
+        <Title>Fortitude</Title>
+        <GenerateDocumentationFile>True</GenerateDocumentationFile>
+        <IncludeSymbols>true</IncludeSymbols>
     </PropertyGroup>
 
     <ItemGroup>

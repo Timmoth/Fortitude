@@ -46,6 +46,17 @@ dotnet test ./Examples/Fortitude.Example.Tests
 
 ```
 
+**Make sure to add the NuGet package to your test project**
+
+[Fortitude on NuGet](https://www.nuget.org/packages/Fortitude/10.0.0)
+
+Install via the .NET CLI:
+
+```bash
+dotnet add package Fortitude --version 10.0.0
+```
+
+
 Here is a sample Test which connects to the Fortitude Server and intercepts request coming from the SUT
 
 ```csharp

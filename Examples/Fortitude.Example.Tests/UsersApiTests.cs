@@ -88,9 +88,7 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
                 response.Body = JsonSerializer.Serialize(expectedUsers);
                 response.Status = 200;
             });
-
-        await fortitude.StartAsync($"{FortitudeBase}/fortitude");
-
+        
         // SUT client configured to use Fortitude as external API
         var client = factory
             .WithWebHostBuilder(builder =>

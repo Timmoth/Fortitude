@@ -8,7 +8,7 @@ namespace Tests;
 
 public class FortitudeClientTests
 {
-    private static string _fortitudeBaseUrl = "http://localhost:8080";
+    private static string _fortitudeBaseUrl = "http://localhost:5093";
     private readonly ITestOutputHelper _output;
 
     public FortitudeClientTests(ITestOutputHelper output)
