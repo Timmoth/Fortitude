@@ -1,28 +1,20 @@
 # Fortitude Server - WIP
-_Cheat reality just enough to achieve your objective - A lightweight, fluent, middleware-powered fake server facilitating next level testing_
+_A lightweight, fluent, middleware-powered fake server for advanced HTTP testing_
 
 <p align="center">
   <img src="./docs/banner.png" width="240" alt="Fortitude Banner"/>
 </p>
 
 ## What is Fortitude?
-**Fortitude** is a .NET testing utility that spins up a lightweight in-process server so your tests can define **fake service behavior dynamically and fluently**.
+Fortitude is a .NET testing utility that lets you control and simulate external HTTP APIs directly from your tests. It’s perfect for functional and behavioral testing when your system under test (SUT) depends on services that are unavailable, difficult to run locally, or expensive to maintain.
 
-Fortitude enables you to:
-- Define fake service behavior **dynamically and fluently**
-- Mock real external services without any workarounds
-- Perform true **black-box** and integration testing
-- Simulate headers, query params, method checks, body predicates, and more
-- Operate without standing up real infrastructure or modifying your SUT
+With Fortitude, your tests can:
+- **Define expected API behavior dynamically and fluently**, including headers, query parameters, methods, and body content
+- **Perform true black-box integration** tests without fragile mocks or stubs
+- **Track, assert, and wait for requests** to ensure the SUT interacts with external services correctly
+- **Simulate realistic responses** so your SUT thinks it’s calling real APIs
 
-Fortitude acts as a highly flexible mock server for your tests — returning exactly what you define, when you define it. Your SUT thinks it’s calling real services, but your tests are in total control.
-
-## Key Features
-- **Ideal for black-box testing**  
-- **Fluent API** for defining fake routes, responses, and behaviors  
-- **Middleware-driven architecture** that intercepts routes  
-- **No need for external mocks**  
-- **Minimal Configuration**
+Fortitude keeps expected behavior close to the test code, increases code coverage, and reduces the complexity of maintaining mocks. Essentially, it gives you full control over your SUT’s external dependencies while letting your tests remain fast, reliable, and expressive.
 
 ## Example
 
@@ -174,7 +166,7 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
 
 ## **Operation Fortitude in history**
 
-The name **Fortitude** is a deliberate nod to **Operation Fortitude**, the famed WW2 deception campaign used by the Allies in 1944.
+The name **Fortitude** is a nod to **Operation Fortitude**, the famed WW2 deception campaign used by the Allies in 1944.
 
 Operation Fortitude was part of the larger deception strategy preceding D-Day.  
 Its purpose was to convince German intelligence that the invasion would occur in **Pas-de-Calais** instead of Normandy.
