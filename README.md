@@ -175,6 +175,39 @@ When you start the Fortitude Server a Blazor front end that can be used to monit
 [End]
 ```
 
+## FAQ
+
+**What is Fortitude?**  
+A mock HTTP server for .NET that lets tests define API behavior dynamically and track requests.
+
+**How is it different from request interceptor libraries?**  
+It runs as a separate server, enabling black-box testing without modifying the SUT.
+
+**How does it compare to other Mock Servers?**  
+Fortitude allows you to define and executes handler logic directly within your test code As opposed to other mock servers which require complex static configuration be sent to the server.
+
+**Why use a separate server instead of an intercepting HttpClient?**  
+It allows realistic HTTP testing, multi-service flows, and true black box testing.
+
+**Can I verify requests made to the server?**  
+Yes, handlers track all intercepted requests for assertions and reporting.
+
+**What are common use cases?**  
+Integration tests, simulating errors, e2e flows and local development.
+
+**Can it emulate APIs for local development?**  
+Yes, and future plans include a marketplace for shared API emulators.
+
+**Does it work with non-.NET services?**  
+Yes, any HTTP client can interact with the server.
+
+**What are current limitations?**  
+Primary client is .NET, shared API definitions are not yet available, running the external fortitude server is required.
+
+**Why is it called Fortitude?**  
+It's named after Operation Fortitude, a WW2 deception campaign, reflecting simulated external behavior.
+
+
 ## **Operation Fortitude in history**
 
 The name **Fortitude** is a nod to [**Operation Fortitude**](https://en.wikipedia.org/wiki/Operation_Fortitude), the famed WW2 deception campaign used by the Allies in 1944.
