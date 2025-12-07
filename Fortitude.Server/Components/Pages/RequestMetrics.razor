@@ -3,16 +3,20 @@
 @inject RequestTracker Tracker
 @implements IDisposable
 
-<div class="max-w-5xl mx-auto p-4 space-y-6">
-    <!-- Live Request Summary -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-xl font-semibold mb-2">Live Request Summary</h2>
-        <p class="text-gray-700"><span class="font-medium">Total Requests:</span> @Tracker.TotalRequests</p>
+<div class="max-w-6xl mx-auto p-4 space-y-6">
+    <!-- Live Request Summary with Clear Button -->
+    <div class="bg-white shadow rounded-lg p-6 flex justify-between items-center">
+        <div>
+            <h2 class="text-xl font-semibold mb-2">Live Request Summary</h2>
+            <p class="text-gray-700"><span class="font-medium">Total Requests:</span> @Tracker.TotalRequests</p>
+        </div>
+        <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
+                @onclick="ClearRequests">Clear</button>
     </div>
 
     <!-- Recent Requests Table -->
-    <div class="bg-white shadow rounded-lg p-6 overflow-x-auto">
-        <h3 class="text-lg font-semibold mb-4">Recent Requests</h3>
+    <div class="bg-white shadow rounded-lg overflow-x-auto">
+        <h3 class="text-lg font-semibold p-6 pb-0">Recent Requests</h3>
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
@@ -20,17 +24,131 @@
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Base URL</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Response</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @foreach (var r in Tracker.Requests.Reverse().Take(25))
                 {
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-2 text-sm text-gray-700">@r.Time.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                        <td class="px-4 py-2 text-sm text-gray-700 font-medium">@r.Method</td>
+                    var resp = Tracker.GetResponse(r.RequestId);
+                    <tr class="hover:bg-gray-50 cursor-pointer" @onclick="() => ToggleExpanded(r.RequestId)">
+                        <td class="px-4 py-2 text-sm text-gray-700 whitespace-nowrap">
+                            @r.Time.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                        </td>
+                        <td class="px-4 py-2 text-sm font-medium text-gray-700 whitespace-nowrap">@r.Method</td>
                         <td class="px-4 py-2 text-sm text-gray-700">@r.Route</td>
                         <td class="px-4 py-2 text-sm text-gray-700">@r.BaseUrl</td>
+                        <td class="px-4 py-2 text-sm text-gray-700 whitespace-nowrap">
+                            @if (resp != null)
+                            {
+                                <span class="text-green-600 font-semibold">✔ @resp.Status</span>
+                            }
+                            else
+                            {
+                                <span class="text-gray-400 italic">Pending</span>
+                            }
+                        </td>
                     </tr>
+
+                    @if (IsExpanded(r.RequestId))
+                    {
+                        <tr class="bg-gray-50">
+                            <td colspan="5" class="px-4 py-3 text-sm text-gray-700">
+                                <div class="space-y-4">
+                                    <!-- Request Details -->
+                                    <div>
+                                        <span class="font-medium">Request Headers:</span>
+                                        @if (r.Headers.Count > 0)
+                                        {
+                                            <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
+@string.Join("\n", r.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))
+                                            </pre>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-gray-500">None</span>
+                                        }
+                                    </div>
+                                    <div>
+                                        <span class="font-medium">Query:</span>
+                                        @if (r.Query.Count > 0)
+                                        {
+                                            <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
+@string.Join("\n", r.Query.Select(q => $"{q.Key}: {string.Join(", ", q.Value)}"))
+                                            </pre>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-gray-500">None</span>
+                                        }
+                                    </div>
+                                    <div>
+                                        <span class="font-medium">Cookies:</span>
+                                        @if (r.Cookies.Count > 0)
+                                        {
+                                            <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
+@string.Join("\n", r.Cookies.Select(c => $"{c.Key}: {c.Value}"))
+                                            </pre>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-gray-500">None</span>
+                                        }
+                                    </div>
+                                    <div>
+                                        <span class="font-medium">Body:</span>
+                                        @if (r.Body != null && r.Body.Length > 0)
+                                        {
+                                            <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
+@System.Text.Encoding.UTF8.GetString(r.Body)
+                                            </pre>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-gray-500">Empty</span>
+                                        }
+                                    </div>
+
+                                    <!-- Response Details -->
+                                    @if (resp != null)
+                                    {
+                                        <div class="border-t pt-2">
+                                            <span class="font-medium">Response Details:</span>
+                                            <div>Status: <span class="font-semibold">@resp.Status</span></div>
+                                            <div>
+                                                <span class="font-medium">Headers:</span>
+                                                @if (resp.Headers.Count > 0)
+                                                {
+                                                    <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
+@string.Join("\n", resp.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))
+                                                    </pre>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-gray-500">None</span>
+                                                }
+                                            </div>
+                                            <div>
+                                                <span class="font-medium">Body:</span>
+                                                @if (!string.IsNullOrEmpty(resp.Body))
+                                                {
+                                                    <pre class="bg-gray-100 p-2 rounded overflow-x-auto">@resp.Body</pre>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-gray-500">Empty</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-gray-400 italic">Response pending...</div>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
@@ -38,6 +156,8 @@
 </div>
 
 @code {
+    private HashSet<Guid> _expandedRows = new();
+
     protected override void OnInitialized()
     {
         Tracker.OnUpdate += TrackerOnUpdate;
@@ -45,8 +165,23 @@
 
     private void TrackerOnUpdate()
     {
-        // Always use InvokeAsync to marshal to the Blazor renderer thread
         InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleExpanded(Guid requestId)
+    {
+        if (_expandedRows.Contains(requestId))
+            _expandedRows.Remove(requestId);
+        else
+            _expandedRows.Add(requestId);
+    }
+
+    private bool IsExpanded(Guid requestId) => _expandedRows.Contains(requestId);
+
+    private void ClearRequests()
+    {
+        Tracker.Clear();
+        _expandedRows.Clear();
     }
 
     public void Dispose()

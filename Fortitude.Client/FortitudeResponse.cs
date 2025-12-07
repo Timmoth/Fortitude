@@ -107,6 +107,19 @@ public sealed class FortitudeResponse
         Body = message ?? "Bad Request";
         return this;
     }
+    
+    /// <summary>
+    ///     Sets the response to status 504 (Gateway Timeout) and assigns an optional message.
+    /// </summary>
+    /// <param name="message">Optional message to include in the body.</param>
+    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
+    public FortitudeResponse GatewayTimeout(string? message = null)
+    {
+        Status = 504;
+        Body = message ?? "Gateway Timeout";
+        return this;
+    }
+    
 
     /// <summary>
     ///     Sets the response to status 500 (Internal Server Error) and assigns an optional message.

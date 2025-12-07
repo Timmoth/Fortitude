@@ -83,6 +83,7 @@ namespace Fortitude.Server
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send IncomingRequest {RequestId}", requestId);
+                _tracker.Add(new FortitudeResponse(req.RequestId).InternalServerError());
                 ctx.Response.StatusCode = 500;
                 await ctx.Response.WriteAsync("Failed to send request to clients.").ConfigureAwait(false);
                 return;
@@ -93,12 +94,14 @@ namespace Fortitude.Server
             try
             {
                 _logger.LogInformation("Waiting for response for {RequestId}", requestId);
-                response = await _pending.WaitForResponse(requestId, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                response = await _pending.WaitForResponse(requestId, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
                 _logger.LogInformation("Received response for {RequestId} with status {Status}", requestId, response.Status);
             }
             catch (TimeoutException)
             {
                 _logger.LogWarning("Timeout waiting for response for {RequestId}", requestId);
+                _tracker.Add(new FortitudeResponse(req.RequestId).GatewayTimeout());
+
                 ctx.Response.StatusCode = 504; // Gateway Timeout
                 await ctx.Response.WriteAsync("No response from client in time.").ConfigureAwait(false);
                 return;
@@ -106,10 +109,14 @@ namespace Fortitude.Server
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error waiting for response for {RequestId}", requestId);
+                _tracker.Add(new FortitudeResponse(req.RequestId).InternalServerError());
+
                 ctx.Response.StatusCode = 500;
                 await ctx.Response.WriteAsync("Error while waiting for response.").ConfigureAwait(false);
                 return;
             }
+            
+            _tracker.Add(response);
 
             // Write response to HTTP pipeline
             ctx.Response.StatusCode = response.Status;
