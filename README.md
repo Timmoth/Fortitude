@@ -107,7 +107,9 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
         Assert.Equal(999, created!.Id); // ID assigned by external service
         Assert.Equal(expectedName, created.Name);
         Assert.Equal(expectedEmail, created.Email);
-        Assert.Single(handler.ReceivedRequests); // Assert only a single request was made to the handler
+        
+        // Assert only a single request was made to the handler
+        Assert.Single(handler.ReceivedRequests);
 
         // Cleanup
         await fortitude.StopAsync();

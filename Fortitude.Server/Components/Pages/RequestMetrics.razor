@@ -1,3 +1,4 @@
+@using Fortitude.Client
 @using Microsoft.AspNetCore.SignalR.Client
 @inject NavigationManager Nav
 @inject RequestTracker Tracker
@@ -9,7 +10,6 @@
         <div>
             <p class="text-gray-700"><span class="font-medium">Total Requests:</span> @Tracker.TotalRequests</p>
         </div>
-        
         <div>
             <p class="text-gray-700"><span class="font-medium">Clients Connected:</span> @Clients.Count</p>
         </div>
@@ -35,9 +35,7 @@
                 {
                     var resp = Tracker.GetResponse(r.RequestId);
                     <tr class="hover:bg-gray-50 cursor-pointer" @onclick="() => ToggleExpanded(r.RequestId)">
-                        <td class="px-4 py-2 text-sm text-gray-700 whitespace-nowrap">
-                            @r.Time.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
-                        </td>
+                        <td class="px-4 py-2 text-sm text-gray-700 whitespace-nowrap">@r.Time.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
                         <td class="px-4 py-2 text-sm font-medium text-gray-700 whitespace-nowrap">@r.Method</td>
                         <td class="px-4 py-2 text-sm text-gray-700">@r.Route</td>
                         <td class="px-4 py-2 text-sm text-gray-700">@r.BaseUrl</td>
@@ -59,71 +57,82 @@
                             <td colspan="5" class="px-4 py-3 text-sm text-gray-700">
                                 <div class="space-y-4">
                                     <!-- Request Details -->
-                                    <div>
-                                        <span class="font-medium">Request Headers:</span>
-                                        @if (r.Headers.Count > 0)
-                                        {
-                                            <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
+                                    <div class="border-b pb-2">
+                                        <span class="font-medium">Request Details:</span>
+                                        <div>Protocol: @r.Protocol</div>
+                                        <div>QueryString: @r.RawQuery</div>
+                                        <div>User Agent: @(r.Headers.ContainsKey("User-Agent") ? string.Join(", ", r.Headers["User-Agent"]) : "Unknown")</div>
+
+                                        <div>
+                                            <span class="font-medium">Headers:</span>
+                                            @if (r.Headers.Count > 0)
+                                            {
+                                                <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
 @string.Join("\n", r.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))
-                                            </pre>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-gray-500">None</span>
-                                        }
-                                    </div>
-                                    <div>
-                                        <span class="font-medium">Query:</span>
-                                        @if (r.Query.Count > 0)
-                                        {
-                                            <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
+                                                </pre>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-gray-500">None</span>
+                                            }
+                                        </div>
+
+                                        <div>
+                                            <span class="font-medium">Query:</span>
+                                            @if (r.Query.Count > 0)
+                                            {
+                                                <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
 @string.Join("\n", r.Query.Select(q => $"{q.Key}: {string.Join(", ", q.Value)}"))
-                                            </pre>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-gray-500">None</span>
-                                        }
-                                    </div>
-                                    <div>
-                                        <span class="font-medium">Cookies:</span>
-                                        @if (r.Cookies.Count > 0)
-                                        {
-                                            <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
+                                                </pre>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-gray-500">None</span>
+                                            }
+                                        </div>
+
+                                        <div>
+                                            <span class="font-medium">Cookies:</span>
+                                            @if (r.Cookies.Count > 0)
+                                            {
+                                                <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
 @string.Join("\n", r.Cookies.Select(c => $"{c.Key}: {c.Value}"))
-                                            </pre>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-gray-500">None</span>
-                                        }
-                                    </div>
-                                    <div>
-                                        <span class="font-medium">Body:</span>
-                                        @if (r.Body != null && r.Body.Length > 0)
-                                        {
-                                            <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
+                                                </pre>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-gray-500">None</span>
+                                            }
+                                        </div>
+
+                                        <div>
+                                            <span class="font-medium">Body:</span>
+                                            @if (r.Body != null && r.Body.Length > 0)
+                                            {
+                                                <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
 @System.Text.Encoding.UTF8.GetString(r.Body)
-                                            </pre>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-gray-500">Empty</span>
-                                        }
+                                                </pre>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-gray-500">Empty</span>
+                                            }
+                                        </div>
                                     </div>
 
                                     <!-- Response Details -->
-                                    @if (resp != null)
-                                    {
-                                        <div class="border-t pt-2">
-                                            <span class="font-medium">Response Details:</span>
+                                    <div>
+                                        <span class="font-medium">Response Details:</span>
+                                        @if (resp != null)
+                                        {
                                             <div>Status: <span class="font-semibold">@resp.Status</span></div>
+                                            <div>Content-Type: @resp.ContentType</div>
                                             <div>
                                                 <span class="font-medium">Headers:</span>
                                                 @if (resp.Headers.Count > 0)
                                                 {
                                                     <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
-@string.Join("\n", resp.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))
+@string.Join("\n", resp.Headers.Select(h => $"{h.Key}: {h.Value}"))
                                                     </pre>
                                                 }
                                                 else
@@ -133,21 +142,21 @@
                                             </div>
                                             <div>
                                                 <span class="font-medium">Body:</span>
-                                                @if (!string.IsNullOrEmpty(resp.Body))
+                                                @if (resp.Body != null)
                                                 {
-                                                    <pre class="bg-gray-100 p-2 rounded overflow-x-auto">@resp.Body</pre>
+                                                    <pre class="bg-gray-100 p-2 rounded overflow-x-auto">@resp.Body.FromMessageBody()</pre>
                                                 }
                                                 else
                                                 {
                                                     <span class="text-gray-500">Empty</span>
                                                 }
                                             </div>
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="text-gray-400 italic">Response pending...</div>
-                                    }
+                                        }
+                                        else
+                                        {
+                                            <div class="text-gray-400 italic">Response pending...</div>
+                                        }
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -192,6 +201,5 @@
     {
         Tracker.OnUpdate -= TrackerOnUpdate;
         Clients.OnChanged -= TrackerOnUpdate;
-
     }
 }

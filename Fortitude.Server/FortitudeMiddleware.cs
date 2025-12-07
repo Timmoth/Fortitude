@@ -15,49 +15,42 @@ namespace Fortitude.Server
         private readonly ILogger<FortitudeMiddleware> _logger;
         private readonly RequestTracker _tracker;
         private readonly ConnectedClientService _connectedClientService;
-        /// <summary>
-        /// Initializes a new instance of <see cref="FortitudeMiddleware"/>.
-        /// </summary>
+
         public FortitudeMiddleware(
             RequestDelegate next,
             PendingRequestStore pending,
             IHubContext<FortitudeHub> hub,
-            ILogger<FortitudeMiddleware> logger, RequestTracker tracker, ConnectedClientService connectedClientService)
+            ILogger<FortitudeMiddleware> logger,
+            RequestTracker tracker,
+            ConnectedClientService connectedClientService)
         {
             _next = next ?? throw new ArgumentNullException(nameof(next));
             _pending = pending ?? throw new ArgumentNullException(nameof(pending));
             _hub = hub ?? throw new ArgumentNullException(nameof(hub));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _tracker = tracker;
-            _connectedClientService = connectedClientService;
+            _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
+            _connectedClientService = connectedClientService ?? throw new ArgumentNullException(nameof(connectedClientService));
         }
 
-        /// <summary>
-        /// Invokes the middleware for the given <see cref="HttpContext"/>.
-        /// </summary>
-        /// <param name="ctx">The HTTP context.</param>
         public async Task InvokeAsync(HttpContext ctx)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
 
             _logger.LogInformation("Middleware invoked for {Method} {Path}", ctx.Request.Method, ctx.Request.Path);
 
-            // Pass through /fortitude endpoint requests to next middleware
             if (ctx.Request.Path.StartsWithSegments("/fortitude", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogInformation("Passing through {Path} to next middleware", ctx.Request.Path);
                 await _next(ctx).ConfigureAwait(false);
                 return;
             }
 
-            // Build FortitudeRequest from HttpContext
             var requestId = Guid.NewGuid();
             FortitudeRequest req;
             try
             {
                 req = await FortitudeRequest.FromHttpContext(ctx, requestId).ConfigureAwait(false);
-                _logger.LogInformation("Created request {RequestId} {Method} {Route}", requestId, req.Method, req.Route);
                 _tracker.Add(req);
+                _logger.LogInformation("Created request {RequestId} {Method} {Route}", requestId, req.Method, req.Route);
             }
             catch (Exception ex)
             {
@@ -71,68 +64,64 @@ namespace Fortitude.Server
             {
                 _logger.LogWarning("No connected clients. The request may timeout.");
             }
-            else
-            {
-                _logger.LogInformation("Connected clients: {Count}", _connectedClientService.Clients.Count);
-            }
 
-            // Send request to all connected SignalR clients
             try
             {
-                _logger.LogInformation("Sending IncomingRequest {RequestId} to SignalR clients", requestId);
                 await _hub.Clients.All.SendAsync("IncomingRequest", req).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send IncomingRequest {RequestId}", requestId);
-                _tracker.Add(new FortitudeResponse(req.RequestId).InternalServerError());
-                ctx.Response.StatusCode = 500;
-                await ctx.Response.WriteAsync("Failed to send request to clients.").ConfigureAwait(false);
+                var errorResponse = new FortitudeResponse(req.RequestId).InternalServerError();
+                _tracker.Add(errorResponse);
+                await WriteResponse(ctx, errorResponse).ConfigureAwait(false);
                 return;
             }
 
-            // Wait for a response from clients
             FortitudeResponse response;
             try
             {
-                _logger.LogInformation("Waiting for response for {RequestId}", requestId);
                 response = await _pending.WaitForResponse(requestId, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-                _logger.LogInformation("Received response for {RequestId} with status {Status}", requestId, response.Status);
             }
             catch (TimeoutException)
             {
                 _logger.LogWarning("Timeout waiting for response for {RequestId}", requestId);
-                _tracker.Add(new FortitudeResponse(req.RequestId).GatewayTimeout());
-
-                ctx.Response.StatusCode = 504; // Gateway Timeout
-                await ctx.Response.WriteAsync("No response from client in time.").ConfigureAwait(false);
-                return;
+                response = new FortitudeResponse(req.RequestId).GatewayTimeout();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error waiting for response for {RequestId}", requestId);
-                _tracker.Add(new FortitudeResponse(req.RequestId).InternalServerError());
-
-                ctx.Response.StatusCode = 500;
-                await ctx.Response.WriteAsync("Error while waiting for response.").ConfigureAwait(false);
-                return;
+                response = new FortitudeResponse(req.RequestId).InternalServerError();
             }
-            
+
             _tracker.Add(response);
 
-            // Write response to HTTP pipeline
-            ctx.Response.StatusCode = response.Status;
-            foreach (var header in response.Headers)
-            {
-                ctx.Response.Headers[header.Key] = header.Value;
-            }
-
-            if (!string.IsNullOrEmpty(response.Body))
-            {
-                await ctx.Response.WriteAsync(response.Body).ConfigureAwait(false);
-            }
+            await WriteResponse(ctx, response).ConfigureAwait(false);
 
             _logger.LogInformation("Response sent for {RequestId}", requestId);
+        }
+
+        /// <summary>
+        /// Writes the FortitudeResponse to the HTTP context.
+        /// Uses Status, Headers, ContentType, and Body.
+        /// </summary>
+        private static async Task WriteResponse(HttpContext ctx, FortitudeResponse response)
+        {
+            ctx.Response.StatusCode = response.Status;
+
+            // Write headers (do not overwrite essential headers like Content-Length)
+            foreach (var header in response.Headers)
+            {
+                if (!ctx.Response.Headers.ContainsKey(header.Key))
+                    ctx.Response.Headers[header.Key] = header.Value;
+            }
+
+            // Write body if present
+            if (response.Body != null && response.Body.Length > 0)
+            {
+                ctx.Response.ContentType = response.ContentType ?? "application/octet-stream";
+                await ctx.Response.Body.WriteAsync(response.Body, 0, response.Body.Length).ConfigureAwait(false);
+            }
         }
     }
 }

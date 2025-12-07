@@ -31,7 +31,7 @@ public class FortitudeClientTests
             .HttpRoute($"/users/{fakeUser.Id}")
             .Returns((req, res) =>
             {
-                res.Body = System.Text.Json.JsonSerializer.Serialize(fakeUser);
+                res.Ok(fakeUser);
             });
         
         using var http = new HttpClient();
@@ -42,7 +42,7 @@ public class FortitudeClientTests
 
         // Then
         await fortitude.StopAsync();
-        var returnedUser = System.Text.Json.JsonSerializer.Deserialize<FakeUser>(body);
+        var returnedUser = System.Text.Json.JsonSerializer.Deserialize<FakeUser>(body, JsonSerializerOptions.Web);
         Assert.Equal(fakeUser.Id, returnedUser?.Id);
 
     }
@@ -83,14 +83,11 @@ public class FortitudeClientTests
             .Returns((req, res) =>
             {
                 var reqObj = JsonSerializer.Deserialize<CreateUserRequest>(req.Body)!;
-                var response = new CreateUserResponse
+                res.Created(new CreateUserResponse
                 {
                     Name = reqObj.Name,
                     Age = reqObj.Age
-                };
-
-                res.Body = JsonSerializer.Serialize(response);
-                res.Status = 201;
+                });
             });
         
         // When
@@ -112,7 +109,7 @@ public class FortitudeClientTests
 
 
         // Then
-        var createdUser = JsonSerializer.Deserialize<CreateUserResponse>(responseBody);
+        var createdUser = JsonSerializer.Deserialize<CreateUserResponse>(responseBody, JsonSerializerOptions.Web);
         Assert.NotNull(createdUser);
         Assert.Equal(userRequest.Name, createdUser?.Name);
         Assert.Equal(userRequest.Age, createdUser?.Age);

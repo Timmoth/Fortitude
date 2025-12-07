@@ -1,55 +1,49 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Fortitude.Client;
 
 /// <summary>
 ///     Represents a response returned by a Fortitude service request, including
-///     status code, response body, optional headers, and the originating request ID.
+///     status code, response body, headers, content type, and the originating request ID.
 /// </summary>
 public sealed class FortitudeResponse
 {
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="FortitudeResponse" /> class
-    ///     with default values.
-    /// </summary>
-    public FortitudeResponse()
-    {
-    }
+    private static readonly JsonSerializerOptions DefaultJsonOptions = JsonSerializerOptions.Web;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="FortitudeResponse" /> class
-    ///     using the provided <paramref name="requestId" /> and defaulting to
-    ///     status code 200 (OK).
+    ///     Initializes a new instance of the <see cref="FortitudeResponse"/> class.
     /// </summary>
-    /// <param name="requestId">The identifier of the originating request.</param>
+    public FortitudeResponse() { }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="FortitudeResponse"/> class
+    ///     with the given <paramref name="requestId"/> and a default status of 200 (OK).
+    /// </summary>
     public FortitudeResponse(Guid requestId)
-        : this(requestId, 200)
-    {
-    }
+        : this(requestId, 200) { }
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="FortitudeResponse" /> class
-    ///     with explicit request details.
+    ///     Initializes a new instance of the <see cref="FortitudeResponse"/> class
+    ///     with full control of status, headers, and body.
     /// </summary>
-    /// <param name="requestId">The identifier of the originating request.</param>
-    /// <param name="status">The status code to assign.</param>
-    /// <param name="headers">Optional response headers.</param>
-    /// <param name="body">Optional response body.</param>
     public FortitudeResponse(
         Guid requestId,
         int status = 200,
         Dictionary<string, string>? headers = null,
-        string? body = null)
+        byte[]? body = null,
+        string contentType = "application/octet-stream")
     {
         RequestId = requestId;
         Status = status;
         Headers = headers ?? new Dictionary<string, string>();
-        Body = body ?? string.Empty;
+        Body = body;
+        ContentType = contentType;
     }
-
+    
     /// <summary>
-    ///     Gets or sets the unique identifier of the request associated with this response.
+    ///     Gets or sets the unique identifier of the originating request.
     /// </summary>
     [JsonPropertyName("requestId")]
     public Guid RequestId { get; set; }
@@ -61,169 +55,168 @@ public sealed class FortitudeResponse
     public int Status { get; set; }
 
     /// <summary>
-    ///     Gets or sets the header values associated with the response.
+    ///     Gets or sets the content type describing the response body.
+    /// </summary>
+    [JsonPropertyName("content_type")]
+    public string ContentType { get; set; } = "application/octet-stream";
+
+    /// <summary>
+    ///     Gets or sets headers associated with the response.
     /// </summary>
     [JsonPropertyName("headers")]
-    public Dictionary<string, string> Headers { get; set; } = new();
+    public Dictionary<string, string> Headers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    ///     Gets or sets the optional string body payload of the response.
+    ///     Gets or sets the raw response body.
     /// </summary>
     [JsonPropertyName("body")]
-    public string? Body { get; set; }
-
-    /// <summary>
-    ///     Sets the response to status 404 (Not Found) and assigns an optional message.
-    /// </summary>
-    /// <param name="message">Optional message to include in the body.</param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
+    public byte[]? Body { get; set; }
+    
     public FortitudeResponse NotFound(string? message = null)
-    {
-        Status = 404;
-        Body = message ?? "Not Found";
-        return this;
-    }
+        => SetText(404, message ?? "Not Found");
 
-    /// <summary>
-    ///     Sets the response to status 501 (Method Not Implemented) and assigns an optional message.
-    /// </summary>
-    /// <param name="message">Optional message to include in the body.</param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
     public FortitudeResponse MethodNotImplemented(string? message = null)
-    {
-        Status = 501;
-        Body = message ?? "Method Not Implemented";
-        return this;
-    }
+        => SetText(501, message ?? "Method Not Implemented");
 
-    /// <summary>
-    ///     Sets the response to status 400 (Bad Request) and assigns an optional message.
-    /// </summary>
-    /// <param name="message">Optional message to include in the body.</param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
     public FortitudeResponse BadRequest(string? message = null)
-    {
-        Status = 400;
-        Body = message ?? "Bad Request";
-        return this;
-    }
-    
-    /// <summary>
-    ///     Sets the response to status 504 (Gateway Timeout) and assigns an optional message.
-    /// </summary>
-    /// <param name="message">Optional message to include in the body.</param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
+        => SetText(400, message ?? "Bad Request");
+
     public FortitudeResponse GatewayTimeout(string? message = null)
+        => SetText(504, message ?? "Gateway Timeout");
+
+    public FortitudeResponse InternalServerError(string? message = null)
+        => SetText(500, message ?? "Internal Server Error");
+
+    public FortitudeResponse Forbidden(string? message = null)
+        => SetText(403, message ?? "Forbidden");
+
+    public FortitudeResponse Unauthorized(string? message = null)
+        => SetText(401, message ?? "Unauthorized");
+
+    /// <summary>
+    ///     Sets a plain-text response with status 200 (OK).
+    /// </summary>
+    public FortitudeResponse Ok(string? message = null, Dictionary<string, string>? headers = null)
     {
-        Status = 504;
-        Body = message ?? "Gateway Timeout";
+        Status = 200;
+
+        if (message != null)
+            SetTextBody(message);
+
+        if (headers != null)
+            ReplaceHeaders(headers);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Sets a JSON response for any serializable type.
+    /// </summary>
+    public FortitudeResponse Ok<T>(T body, Dictionary<string, string>? headers = null)
+        => SetJson(200, body, headers);
+
+    /// <summary>
+    ///     Sets a JSON response with status 201 (Created).
+    /// </summary>
+    public FortitudeResponse Created<T>(T body, Dictionary<string, string>? headers = null)
+        => SetJson(201, body, headers);
+    
+    /// <summary>
+    ///     Sets a UTF-8 text response for the given status code.
+    /// </summary>
+    public FortitudeResponse SetText(int status, string message)
+    {
+        Status = status;
+        SetTextBody(message);
+        return this;
+    }
+
+    /// <summary>
+    ///     Sets the body to a UTF-8 text payload and configures Content-Type automatically.
+    /// </summary>
+    public FortitudeResponse SetTextBody(string message)
+    {
+        Body = Encoding.UTF8.GetBytes(message);
+        ContentType = "text/plain; charset=utf-8";
+        return this;
+    }
+
+    /// <summary>
+    ///     Sets a JSON response for any serializable object.
+    ///     JSON Content-Type is inferred automatically.
+    /// </summary>
+    public FortitudeResponse SetJson<T>(int status, T body, Dictionary<string, string>? headers = null)
+    {
+        Status = status;
+
+        Body = JsonSerializer.SerializeToUtf8Bytes(body, DefaultJsonOptions);
+        ContentType = "application/json";
+
+        if (headers != null)
+            ReplaceHeaders(headers);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Sets an arbitrary byte array as the response body.
+    ///     Content-Type is inferred if possible.
+    /// </summary>
+    public FortitudeResponse SetBinary(byte[] data, string? inferredContentType = null)
+    {
+        Body = data;
+        ContentType = inferredContentType ?? "application/octet-stream";
+        return this;
+    }
+
+    /// <summary>
+    ///     Sets a file-like response from a stream.
+    ///     Stream will be fully copied into memory.
+    /// </summary>
+    public async Task<FortitudeResponse> SetStreamAsync(Stream stream, string contentType = "application/octet-stream")
+    {
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms).ConfigureAwait(false);
+
+        Body = ms.ToArray();
+        ContentType = contentType;
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Sets the response body automatically based on the type of the given value:
+    ///     - string → text/plain
+    ///     - byte[] → application/octet-stream
+    ///     - any other object → application/json
+    /// </summary>
+    public FortitudeResponse Auto(object? value, int status = 200)
+    {
+        Status = status;
+
+        switch (value)
+        {
+            case null:
+                Body = null;
+                ContentType = "text/plain; charset=utf-8";
+                break;
+
+            case string s:
+                SetTextBody(s);
+                break;
+
+            case byte[] bytes:
+                SetBinary(bytes);
+                break;
+
+            default:
+                SetJson(status, value);
+                break;
+        }
+
         return this;
     }
     
-
-    /// <summary>
-    ///     Sets the response to status 500 (Internal Server Error) and assigns an optional message.
-    /// </summary>
-    /// <param name="message">Optional message to include in the body.</param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
-    public FortitudeResponse InternalServerError(string? message = null)
-    {
-        Status = 500;
-        Body = message ?? "Internal Server Error";
-        return this;
-    }
-
-    /// <summary>
-    ///     Sets the response to status 403 (Forbidden) and assigns an optional message.
-    /// </summary>
-    /// <param name="message">Optional message to include in the body.</param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
-    public FortitudeResponse Forbidden(string? message = null)
-    {
-        Status = 403;
-        Body = message ?? "Forbidden";
-        return this;
-    }
-
-    /// <summary>
-    ///     Sets the response to status 401 (Unauthorized) and assigns an optional message.
-    /// </summary>
-    /// <param name="message">Optional message to include in the body.</param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
-    public FortitudeResponse Unauthorized(string? message = null)
-    {
-        Status = 401;
-        Body = message ?? "Unauthorized";
-        return this;
-    }
-
-    /// <summary>
-    ///     Sets the response to status 200 (OK) and optionally assigns a raw string body
-    ///     and/or replaces the existing header collection.
-    /// </summary>
-    /// <param name="body">
-    ///     Optional raw string body to assign. If <c>null</c>, the existing body is preserved.
-    /// </param>
-    /// <param name="headers">
-    ///     Optional headers to assign. If provided, they replace the existing header collection.
-    /// </param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
-    public FortitudeResponse Ok(string? body = null, Dictionary<string, string>? headers = null)
-    {
-        Status = 200;
-
-        if (body != null)
-            Body = body;
-
-        if (headers != null)
-            Headers = headers;
-
-        return this;
-    }
-
-    /// <summary>
-    ///     Sets the response to status 200 (OK) and assigns a serialized JSON representation
-    ///     of the specified object to the response body. Optionally replaces the existing
-    ///     header collection.
-    /// </summary>
-    /// <typeparam name="T">The type of the object to serialize into the body.</typeparam>
-    /// <param name="body">The object to serialize into JSON for the response body.</param>
-    /// <param name="headers">
-    ///     Optional headers to assign. If provided, they replace the existing header collection.
-    /// </param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
-    public FortitudeResponse Ok<T>(T body, Dictionary<string, string>? headers = null)
-    {
-        Status = 200;
-
-        Body = JsonSerializer.Serialize(body, JsonSerializerOptions.Web);
-
-        if (headers != null)
-            Headers = headers;
-
-        return this;
-    }
-
-    /// <summary>
-    ///     Sets the response to status 201 (Created) and assigns a serialized JSON representation
-    ///     of the specified object to the response body. Optionally replaces the existing
-    ///     header collection.
-    /// </summary>
-    /// <typeparam name="T">The type of the object to serialize into the body.</typeparam>
-    /// <param name="body">The object to serialize into JSON for the response body.</param>
-    /// <param name="headers">
-    ///     Optional headers to assign. If provided, they replace the existing header collection.
-    /// </param>
-    /// <returns>The current <see cref="FortitudeResponse" /> instance.</returns>
-    public FortitudeResponse Created<T>(T body, Dictionary<string, string>? headers = null)
-    {
-        Status = 201;
-
-        Body = JsonSerializer.Serialize(body, JsonSerializerOptions.Web);
-
-        if (headers != null)
-            Headers = headers;
-
-        return this;
-    }
+    private void ReplaceHeaders(Dictionary<string, string> headers)
+        => Headers = new Dictionary<string, string>(headers, StringComparer.OrdinalIgnoreCase);
 }

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
@@ -31,6 +32,72 @@ public static class FortitudeExtensions
         }
     }
 
+    /// <summary>
+    ///     Converts a string into a UTF-8 encoded byte array suitable for use
+    ///     as a message body.
+    /// </summary>
+    /// <param name="text">The input string to encode.</param>
+    /// <returns>
+    ///     A UTF-8 encoded <see cref="byte"/> array, or <c>null</c> if
+    ///     <paramref name="text"/> is <c>null</c>.
+    /// </returns>
+    public static byte[]? ToMessageBody(this string? text)
+    {
+        if (text is null)
+            return null;
+
+        return Encoding.UTF8.GetBytes(text);
+    }
+    
+    /// <summary>
+    ///     Converts a UTF-8 encoded byte array into a string.
+    /// </summary>
+    /// <param name="bytes">The byte array to decode.</param>
+    /// <returns>
+    ///     The decoded string, or <c>null</c> if <paramref name="bytes"/> is <c>null</c>.
+    /// </returns>
+    public static string? FromMessageBody(this byte[]? bytes)
+    {
+        if (bytes is null)
+            return null;
+
+        return Encoding.UTF8.GetString(bytes);
+    }
+    
+    /// <summary>
+    ///     Serializes an object of type <typeparamref name="T"/> into JSON
+    ///     and returns the UTF-8 encoded byte array suitable for use as a
+    ///     message body.
+    /// </summary>
+    /// <typeparam name="T">The type of object to serialize.</typeparam>
+    /// <param name="value">The value to serialize.</param>
+    /// <param name="options">
+    ///     Optional <see cref="JsonSerializerOptions"/> controlling the JSON formatting.
+    ///     If not supplied, <see cref="JsonSerializerOptions.Web"/> is used.
+    /// </param>
+    /// <returns>
+    ///     A UTF-8 encoded JSON <see cref="byte"/> array representing
+    ///     <paramref name="value"/>. If <paramref name="value"/> is <c>null</c>,
+    ///     the JSON literal <c>"null"</c> is returned.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown if JSON serialization fails.
+    /// </exception>
+    public static byte[] ToMessageBody<T>(this T value, JsonSerializerOptions? options = null)
+    {
+        try
+        {
+            return JsonSerializer.SerializeToUtf8Bytes(
+                value,
+                options ?? JsonSerializerOptions.Web
+            );
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException("Failed to serialize object to JSON.", ex);
+        }
+    }
+    
     /// <summary>
     ///     Creates and starts a <see cref="FortitudeClient" /> connected to the specified base URL.
     ///     Intended for use in tests.
