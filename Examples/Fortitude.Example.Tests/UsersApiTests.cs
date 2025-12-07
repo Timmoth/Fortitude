@@ -11,7 +11,7 @@ namespace Fortitude.Example.Api;
 public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHelper output)
     : IClassFixture<WebApplicationFactory<Program>>
 {
-    private const string FortitudeBase = "http://localhost:5093";
+    private const string FortitudeBase = "http://localhost:5185";
     
     [Fact]
     public async Task CreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()

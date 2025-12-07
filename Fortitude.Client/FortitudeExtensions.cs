@@ -47,7 +47,7 @@ public static class FortitudeExtensions
 
         try
         {
-            await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude");
+            await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
         }
         catch (Exception ex)
         {

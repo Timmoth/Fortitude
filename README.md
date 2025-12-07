@@ -26,7 +26,7 @@ To pull the latest Fortitude Server image from Docker Hub:
 
 To run the container and expose port 8080:
 
-```docker run -p 5093:8080 aptacode/fortitude-server:latest```
+```docker run -p 5185:8080 aptacode/fortitude-server:latest```
 
 ### Example
 
@@ -39,7 +39,7 @@ To run the example tests:
 dotnet run --project ./Fortitude.Server/
 
 # Or the docker container
-docker run -p 5093:8080 aptacode/fortitude-server:latest
+docker run -p 5185:8080 aptacode/fortitude-server:latest
 
 # Run the tests
 dotnet test ./Examples/Fortitude.Example.Tests
@@ -113,6 +113,15 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
         await fortitude.StopAsync();
     }
 ```
+
+## Live Server
+
+When you start the Fortitude Server a Blazor front end that can be used to monitor all traffic will be accesible at: 
+`http://localhost:5185/fortitude` 
+
+<p align="center">
+  <img src="./docs/live-server.png" width="240" alt="Fortitude Live Server"/>
+</p>
 
 ## How it works
 

@@ -56,6 +56,8 @@ public class FortitudeRequest
     [JsonPropertyName("body")]
     public byte[]? Body { get; set; }
 
+    public DateTimeOffset Time { get; set; } = DateTimeOffset.UtcNow;
+
     /// <summary>
     ///     Builds a <see cref="FortitudeRequest" /> from an <see cref="HttpContext" />.
     /// </summary>

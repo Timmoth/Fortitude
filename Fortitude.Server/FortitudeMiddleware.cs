@@ -13,7 +13,7 @@ namespace Fortitude.Server
         private readonly PendingRequestStore _pending;
         private readonly IHubContext<FortitudeHub> _hub;
         private readonly ILogger<FortitudeMiddleware> _logger;
-
+        private readonly RequestTracker _tracker;
         /// <summary>
         /// Initializes a new instance of <see cref="FortitudeMiddleware"/>.
         /// </summary>
@@ -21,12 +21,13 @@ namespace Fortitude.Server
             RequestDelegate next,
             PendingRequestStore pending,
             IHubContext<FortitudeHub> hub,
-            ILogger<FortitudeMiddleware> logger)
+            ILogger<FortitudeMiddleware> logger, RequestTracker tracker)
         {
             _next = next ?? throw new ArgumentNullException(nameof(next));
             _pending = pending ?? throw new ArgumentNullException(nameof(pending));
             _hub = hub ?? throw new ArgumentNullException(nameof(hub));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _tracker = tracker;
         }
 
         /// <summary>
@@ -54,6 +55,7 @@ namespace Fortitude.Server
             {
                 req = await FortitudeRequest.FromHttpContext(ctx, requestId).ConfigureAwait(false);
                 _logger.LogInformation("Created request {RequestId} {Method} {Route}", requestId, req.Method, req.Route);
+                _tracker.Add(req);
             }
             catch (Exception ex)
             {
