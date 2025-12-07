@@ -120,7 +120,7 @@ When you start the Fortitude Server a Blazor front end that can be used to monit
 `http://localhost:5185/fortitude` 
 
 <p align="center">
-  <img src="./docs/live-server.png" width="240" alt="Fortitude Live Server"/>
+  <img src="./docs/live-server.png" width="480" alt="Fortitude Live Server"/>
 </p>
 
 ## How it works

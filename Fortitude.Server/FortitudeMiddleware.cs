@@ -14,6 +14,7 @@ namespace Fortitude.Server
         private readonly IHubContext<FortitudeHub> _hub;
         private readonly ILogger<FortitudeMiddleware> _logger;
         private readonly RequestTracker _tracker;
+        private readonly ConnectedClientService _connectedClientService;
         /// <summary>
         /// Initializes a new instance of <see cref="FortitudeMiddleware"/>.
         /// </summary>
@@ -21,13 +22,14 @@ namespace Fortitude.Server
             RequestDelegate next,
             PendingRequestStore pending,
             IHubContext<FortitudeHub> hub,
-            ILogger<FortitudeMiddleware> logger, RequestTracker tracker)
+            ILogger<FortitudeMiddleware> logger, RequestTracker tracker, ConnectedClientService connectedClientService)
         {
             _next = next ?? throw new ArgumentNullException(nameof(next));
             _pending = pending ?? throw new ArgumentNullException(nameof(pending));
             _hub = hub ?? throw new ArgumentNullException(nameof(hub));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _tracker = tracker;
+            _connectedClientService = connectedClientService;
         }
 
         /// <summary>
@@ -65,13 +67,13 @@ namespace Fortitude.Server
                 return;
             }
 
-            if (FortitudeHub.ConnectedClients.IsEmpty)
+            if (_connectedClientService.Clients.IsEmpty)
             {
                 _logger.LogWarning("No connected clients. The request may timeout.");
             }
             else
             {
-                _logger.LogInformation("Connected clients: {Count}", FortitudeHub.ConnectedClients.Count);
+                _logger.LogInformation("Connected clients: {Count}", _connectedClientService.Clients.Count);
             }
 
             // Send request to all connected SignalR clients

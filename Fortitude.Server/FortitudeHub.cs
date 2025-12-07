@@ -11,22 +11,18 @@ namespace Fortitude.Server
     {
         private readonly PendingRequestStore _store;
         private readonly ILogger<FortitudeHub> _logger;
-
-        /// <summary>
-        /// Thread-safe dictionary of currently connected clients.
-        /// Key and value are ConnectionId.
-        /// </summary>
-        public static ConcurrentDictionary<string, string> ConnectedClients { get; } = new();
+        private readonly ConnectedClientService _clients;
 
         /// <summary>
         /// Initializes a new instance of <see cref="FortitudeHub"/>.
         /// </summary>
         /// <param name="store">The pending request store to track and complete requests.</param>
         /// <param name="logger">Logger instance for diagnostics.</param>
-        public FortitudeHub(PendingRequestStore store, ILogger<FortitudeHub> logger)
+        public FortitudeHub(PendingRequestStore store, ILogger<FortitudeHub> logger, ConnectedClientService clients)
         {
             _store = store ?? throw new ArgumentNullException(nameof(store));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _clients = clients ?? throw new ArgumentNullException(nameof(clients));
         }
 
         /// <summary>
@@ -56,12 +52,7 @@ namespace Fortitude.Server
         /// </summary>
         public override Task OnConnectedAsync()
         {
-            ConnectedClients[Context.ConnectionId] = Context.ConnectionId;
-
-            _logger.LogInformation("Client connected: {ConnectionId}. Total connected: {Count}",
-                Context.ConnectionId, ConnectedClients.Count);
-
-            _logger.LogDebug("Current clients: {Clients}", string.Join(", ", ConnectedClients.Keys));
+            _clients.Add(Context.ConnectionId);
 
             return base.OnConnectedAsync();
         }
@@ -72,18 +63,13 @@ namespace Fortitude.Server
         /// <param name="exception">Optional exception if the disconnect was due to an error.</param>
         public override Task OnDisconnectedAsync(Exception? exception)
         {
-            ConnectedClients.TryRemove(Context.ConnectionId, out _);
-
-            _logger.LogInformation("Client disconnected: {ConnectionId}. Total connected: {Count}",
-                Context.ConnectionId, ConnectedClients.Count);
+            _clients.Remove(Context.ConnectionId);
 
             if (exception != null)
             {
                 _logger.LogWarning(exception, "Client {ConnectionId} disconnected due to error", Context.ConnectionId);
             }
-
-            _logger.LogDebug("Current clients: {Clients}", string.Join(", ", ConnectedClients.Keys));
-
+            
             return base.OnDisconnectedAsync(exception);
         }
     }

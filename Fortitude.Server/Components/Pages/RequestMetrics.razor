@@ -2,13 +2,16 @@
 @inject NavigationManager Nav
 @inject RequestTracker Tracker
 @implements IDisposable
+@inject ConnectedClientService Clients
 
 <div class="max-w-6xl mx-auto p-4 space-y-6">
-    <!-- Live Request Summary with Clear Button -->
     <div class="bg-white shadow rounded-lg p-6 flex justify-between items-center">
         <div>
-            <h2 class="text-xl font-semibold mb-2">Live Request Summary</h2>
             <p class="text-gray-700"><span class="font-medium">Total Requests:</span> @Tracker.TotalRequests</p>
+        </div>
+        
+        <div>
+            <p class="text-gray-700"><span class="font-medium">Clients Connected:</span> @Clients.Count</p>
         </div>
         <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
                 @onclick="ClearRequests">Clear</button>
@@ -161,6 +164,7 @@
     protected override void OnInitialized()
     {
         Tracker.OnUpdate += TrackerOnUpdate;
+        Clients.OnChanged += TrackerOnUpdate;
     }
 
     private void TrackerOnUpdate()
@@ -187,5 +191,7 @@
     public void Dispose()
     {
         Tracker.OnUpdate -= TrackerOnUpdate;
+        Clients.OnChanged -= TrackerOnUpdate;
+
     }
 }

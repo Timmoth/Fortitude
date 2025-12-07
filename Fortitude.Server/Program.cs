@@ -14,6 +14,7 @@ StaticWebAssetsLoader.UseStaticWebAssets(
 
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<RequestTracker>();
+builder.Services.AddSingleton<ConnectedClientService>();
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
