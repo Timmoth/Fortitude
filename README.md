@@ -5,6 +5,9 @@ _Fortitude spins up a local mock server so you can fluently configure HTTP route
   <img src="./docs/banner.png" width="240" alt="Fortitude Banner"/>
 </p>
 
+[NuGet](https://www.nuget.org/packages/Fortitude) - 
+[Docker](https://hub.docker.com/r/aptacode/fortitude-server)
+
 ## What is Fortitude?
 Fortitude is a .NET testing utility that lets you control and simulate external HTTP APIs directly from your tests. It’s perfect for functional and behavioral testing when your system under test (SUT) depends on services that are unavailable, difficult to run locally, or expensive to maintain.
 
@@ -16,22 +19,20 @@ With Fortitude, your tests can:
 
 Fortitude keeps expected behavior close to the test code, increases code coverage, and reduces the complexity of maintaining mocks. Essentially, it gives you full control over your SUT’s external dependencies while letting your tests remain fast, reliable, and expressive.
 
-## Example
-
 ### Running the Fortitude Server via Docker
 
-To pull the latest Fortitude Server image from Docker Hub:
+```bash
+# Pull the latest Fortitude Server image from Docker Hub:
+docker pull aptacode/fortitude-server:latest
 
-```docker pull aptacode/fortitude-server:latest```
-
-To run the container and expose port 8080:
-
-```docker run -p 5185:8080 aptacode/fortitude-server:latest```
+# Run the container
+docker run -p 5185:8080 aptacode/fortitude-server:latest
+```
 
 ### Example
 
-An example project / tests can be in the /Examples directory.
-
+[An example project / tests can be in the examples directory.
+](Examples/)
 
 To run the example tests:
 ```bash
@@ -48,11 +49,10 @@ dotnet test ./Examples/Fortitude.Example.Tests
 
 **Make sure to add the NuGet package to your test project**
 
-[Fortitude on NuGet](https://www.nuget.org/packages/Fortitude/10.0.0)
-
-Install via the .NET CLI:
+[Fortitude on NuGet](https://www.nuget.org/packages/Fortitude)
 
 ```bash
+# Install via the .NET CLI:
 dotnet add package Fortitude --version 10.0.0
 ```
 
@@ -175,7 +175,7 @@ When you start the Fortitude Server a Blazor front end that can be used to monit
 
 ## **Operation Fortitude in history**
 
-The name **Fortitude** is a nod to **Operation Fortitude**, the famed WW2 deception campaign used by the Allies in 1944.
+The name **Fortitude** is a nod to [**Operation Fortitude**](https://en.wikipedia.org/wiki/Operation_Fortitude), the famed WW2 deception campaign used by the Allies in 1944.
 
 Operation Fortitude was part of the larger deception strategy preceding D-Day.  
 Its purpose was to convince German intelligence that the invasion would occur in **Pas-de-Calais** instead of Normandy.
@@ -188,6 +188,10 @@ The Allies used:
 All designed to **simulate real military forces that didn’t actually exist**.
  
 Much like its namesake, Fortitude simulates service behavior - a controlled deception that empowers your testing strategy.
+
+<p align="center">
+  <img src="./docs/decoy-tank.jpg" width="480" alt="Decoy Tank"/>
+</p>
 
 ## Interested in getting involved?
 We're looking for collaborators to help extend the core server and or build lightweight clients (JS/TS, Python, Java, etc.) — if you’re interested, feel free to reach out or open an issue!
