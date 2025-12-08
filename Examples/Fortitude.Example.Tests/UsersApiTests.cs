@@ -1,23 +1,23 @@
 using System.Net.Http.Json;
-using System.Text.Json;
 using Fortitude.Client;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Microsoft.VisualStudio.TestPlatform.TestHost;
 using Xunit.Abstractions;
 
+// Allows all test collections to run in parallel
+[assembly: CollectionBehavior(DisableTestParallelization = false, MaxParallelThreads = 4)]
 namespace Fortitude.Example.Api;
 
 public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHelper output)
     : IClassFixture<WebApplicationFactory<Program>>
 {
-    private const string FortitudeBase = "http://localhost:5185";
+    private const string FortitudeBase = "http://localhost:54000";
     
     [Fact]
     public async Task CreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
         // Given: Fortitude fake server simulating the external API
-        var fortitude = await FortitudeServer.ConnectAsync(FortitudeBase, output);
+        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(FortitudeBase, output);
 
         var expectedName = "Alice";
         var expectedEmail = "alice@example.com";
@@ -42,7 +42,7 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
                         // Configure your SUT to point at the Fortitude Server
-                        ["ExternalApi:BaseUrl"] = $"{FortitudeBase}/"
+                        ["ExternalApi:BaseUrl"] = mockServiceUrl
                     });
                 });
             })
@@ -79,7 +79,7 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
         };
 
         // Start Fortitude fake server
-        var fortitude = await FortitudeServer.ConnectAsync(FortitudeBase, output);
+        var (fortitude, fortitudeUrl) = await FortitudeServer.ConnectAsync(FortitudeBase, output);
     
         var getHandler = fortitude.Accepts()
             .Get()
@@ -97,7 +97,7 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
-                        ["ExternalApi:BaseUrl"] = $"{FortitudeBase}/"
+                        ["ExternalApi:BaseUrl"] = fortitudeUrl
                     });
                 });
             })

@@ -28,7 +28,7 @@ public class FortitudeHandlerBuilder
     private readonly Dictionary<string, string> _queryParams = new(StringComparer.OrdinalIgnoreCase);
     private Func<byte[]?, bool>? _bodyPredicate;
     private string? _route;
-    
+    private Func<FortitudeRequest, bool>? _requestPredicate;
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandlerBuilder" />.
     /// </summary>
@@ -41,6 +41,16 @@ public class FortitudeHandlerBuilder
 
     #region HTTP Methods
 
+    /// <summary>
+    ///     Adds a Request matching predicate to the handler.
+    /// </summary>
+    public FortitudeHandlerBuilder Matches(Func<FortitudeRequest, bool> predicate)
+    {
+        _requestPredicate = predicate ?? throw new ArgumentNullException(nameof(predicate));
+        return this;
+    }
+
+    
     /// <summary>
     ///     Adds an HTTP method to the handler.
     /// </summary>
@@ -165,6 +175,7 @@ public class FortitudeHandlerBuilder
             _headers,
             _queryParams,
             _bodyPredicate,
+            _requestPredicate,
             responder
         );
 
@@ -187,6 +198,7 @@ public class FortitudeHandlerBuilder
             _headers,
             _queryParams,
             _bodyPredicate,
+            _requestPredicate,
             asyncResponder
         );
 

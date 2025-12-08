@@ -48,6 +48,17 @@ namespace Fortitude.Server
         }
 
         /// <summary>
+        /// Allows a connected client to query which port it has been assigned.
+        /// </summary>
+        public int GetAssignedPort()
+        {
+            var connId = Context.ConnectionId;
+            var port = _clients.GetPortForClient(connId);
+
+            return port ?? -1; // Return -1 if not assigned
+        }
+        
+        /// <summary>
         /// Called when a client connects to the hub.
         /// </summary>
         public override Task OnConnectedAsync()

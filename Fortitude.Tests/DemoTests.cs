@@ -23,7 +23,7 @@ public class FortitudeClientTests
     public async Task Test1()
     {
         // Given
-        var fortitude = await FortitudeServer.ConnectAsync(_fortitudeBaseUrl, _output);
+        var (fortitude, fortitudeUrl) = await FortitudeServer.ConnectAsync(_fortitudeBaseUrl, _output);
 
         var fakeUser = new FakeUser();
         var handler = fortitude.Accepts()
@@ -35,7 +35,7 @@ public class FortitudeClientTests
             });
         
         using var http = new HttpClient();
-        var response = await http.GetAsync($"{_fortitudeBaseUrl}/users/{fakeUser.Id}");
+        var response = await http.GetAsync($"{fortitudeUrl}/users/{fakeUser.Id}");
 
         var body = await response.Content.ReadAsStringAsync();
         _output.WriteLine($"Response: {body}");
@@ -67,7 +67,7 @@ public class FortitudeClientTests
         // Given
         
         // Start Fortitude client
-        var fortitude = await FortitudeServer.ConnectAsync(_fortitudeBaseUrl, _output);
+        var (fortitude, fortitudeUrl) = await FortitudeServer.ConnectAsync(_fortitudeBaseUrl, _output);
 
         // Define handler for POST /users with header and query param checks
         var handler = fortitude.Accepts()

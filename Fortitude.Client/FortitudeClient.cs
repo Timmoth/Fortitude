@@ -8,6 +8,7 @@ namespace Fortitude.Client;
 /// </summary>
 public class FortitudeClient : IAsyncDisposable
 {
+    public int Port { get; private set; } = -1;
     private readonly List<FortitudeHandler> _handlers = new();
     private readonly ILogger<FortitudeClient> _logger;
     private HubConnection? _connection;
@@ -53,7 +54,7 @@ public class FortitudeClient : IAsyncDisposable
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the client is already started.</exception>
-    public async Task StartAsync(string url, CancellationToken cancellationToken = default)
+    public async Task<int> StartAsync(string url, CancellationToken cancellationToken = default)
     {
         if (_connection != null)
             throw new InvalidOperationException("FortitudeClient is already started.");
@@ -95,6 +96,22 @@ public class FortitudeClient : IAsyncDisposable
             _logger.LogError(ex, "Failed to connect to Fortitude server at {Url}", url);
             throw;
         }
+        
+        try
+        {
+            Port = await _connection.InvokeAsync<int>("GetAssignedPort", cancellationToken: cancellationToken);
+    
+            if (Port > 0)
+                _logger.LogInformation("This client has been assigned port {Port}", Port);
+            else
+                _logger.LogWarning("This client has NOT been assigned a port.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to query assigned port from server.");
+        }
+        
+        return Port;
     }
 
     /// <summary>

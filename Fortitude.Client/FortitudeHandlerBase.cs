@@ -10,6 +10,8 @@ public class FortitudeHandler
 {
     private readonly Func<FortitudeRequest, FortitudeResponse, Task> _asyncResponder;
     private readonly Func<byte[]?, bool>? _bodyPredicate;
+    private Func<FortitudeRequest, bool>? _requestPredicate;
+
     private readonly Dictionary<string, string> _headers;
     private readonly HashSet<string> _methods;
     private readonly Dictionary<string, string> _queryParams;
@@ -27,6 +29,7 @@ public class FortitudeHandler
         Dictionary<string, string>? headers,
         Dictionary<string, string>? queryParams,
         Func<byte[]?, bool>? bodyPredicate,
+        Func<FortitudeRequest, bool>? requestPredicate,
         Func<FortitudeRequest, FortitudeResponse, Task> asyncResponder)
     {
         _methods = new HashSet<string>(methods ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
@@ -34,6 +37,7 @@ public class FortitudeHandler
         _headers = headers ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         _queryParams = queryParams ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         _bodyPredicate = bodyPredicate;
+        _requestPredicate = requestPredicate;
         _asyncResponder = asyncResponder ?? throw new ArgumentNullException(nameof(asyncResponder));
     }
 
@@ -45,8 +49,9 @@ public class FortitudeHandler
         Dictionary<string, string>? headers,
         Dictionary<string, string>? queryParams,
         Func<byte[]?, bool>? bodyPredicate,
+        Func<FortitudeRequest, bool>? requestPredicate,
         Action<FortitudeRequest, FortitudeResponse> responder)
-        : this(methods, route, headers, queryParams, bodyPredicate,
+        : this(methods, route, headers, queryParams, bodyPredicate,requestPredicate,
             (req, res) =>
             {
                 responder?.Invoke(req, res);
@@ -77,7 +82,8 @@ public class FortitudeHandler
                 return false;
 
         if (_bodyPredicate != null && !_bodyPredicate(req.Body)) return false;
-
+        if (_requestPredicate != null && !_requestPredicate(req)) return false;
+        
         return true;
     }
 

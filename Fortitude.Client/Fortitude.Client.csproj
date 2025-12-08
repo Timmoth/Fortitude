@@ -8,7 +8,7 @@
 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageId>Fortitude</PackageId>
-        <PackageVersion>10.0.3</PackageVersion>
+        <PackageVersion>10.0.4</PackageVersion>
         <Authors>Tim Jones</Authors>
         <Company>Aptacode</Company>
         <Description>A lightweight, fluent, middleware-powered fake server for advanced HTTP testing</Description>

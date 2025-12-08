@@ -119,7 +119,7 @@ public static class FortitudeExtensions
         /// <exception cref="Exception">
         /// Thrown when an error occurs while starting the client.
         /// </exception>
-        public static async Task<FortitudeClient> ConnectAsync(
+        public static async Task<(FortitudeClient, string)> ConnectAsync(
             string fortitudeBaseUrl,
             ITestOutputHelper logger)
         {
@@ -131,10 +131,11 @@ public static class FortitudeExtensions
             
             var fortitude = new FortitudeClient(new TestOutputLogger<FortitudeClient>(logger));
 
+            var port = -1;
             try
             {
                 Console.WriteLine(fortitudeBaseUrl);
-                await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
+                port = await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
             }
             catch (Exception ex)
             {
@@ -145,7 +146,7 @@ public static class FortitudeExtensions
             var uiServerUrl = $"{fortitudeBaseUrl.TrimEnd('/')}/fortitude";
             logger.WriteLine("Fortitude server UI live at {0}...", uiServerUrl);
 
-            return fortitude;
+            return (fortitude, ReplacePort(fortitudeBaseUrl.TrimEnd('/'), port));
         }
 
         /// <summary>
@@ -162,7 +163,7 @@ public static class FortitudeExtensions
         /// <exception cref="Exception">
         /// Thrown when an error occurs while starting the client.
         /// </exception>
-        public static async Task<FortitudeClient> ConnectAsync(
+        public static async Task<(FortitudeClient, string)> ConnectAsync(
             string fortitudeBaseUrl,
             ILogger<FortitudeClient> logger)
         {
@@ -174,10 +175,11 @@ public static class FortitudeExtensions
                 .CreateLogger<FortitudeClient>();
 
             var fortitude = new FortitudeClient(logger);
+            var port = -1;
 
             try
             {
-                await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
+                port = await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
             }
             catch (Exception ex)
             {
@@ -186,7 +188,7 @@ public static class FortitudeExtensions
             }
             logger.LogInformation("Fortitude server UI live at {Url}...", $"{fortitudeBaseUrl.TrimEnd('/')}/fortitude");
 
-            return fortitude;
+            return (fortitude, ReplacePort(fortitudeBaseUrl.TrimEnd('/'), port));
         }
         
         /// <summary>
@@ -200,7 +202,7 @@ public static class FortitudeExtensions
         /// <exception cref="Exception">
         /// Thrown when an error occurs while starting the client.
         /// </exception>
-        public static async Task<FortitudeClient> ConnectAsync(
+        public static async Task<(FortitudeClient, string)> ConnectAsync(
             string fortitudeBaseUrl)
         {
             if (string.IsNullOrWhiteSpace(fortitudeBaseUrl))
@@ -211,10 +213,11 @@ public static class FortitudeExtensions
                 .CreateLogger<FortitudeClient>();
 
             var fortitude = new FortitudeClient(logger);
+            var port = -1;
 
             try
             {
-                await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
+                port = await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
             }
             catch (Exception ex)
             {
@@ -223,7 +226,7 @@ public static class FortitudeExtensions
             }
             logger.LogInformation("Fortitude server UI live at {Url}...", $"{fortitudeBaseUrl.TrimEnd('/')}/fortitude");
 
-            return fortitude;
+            return (fortitude, ReplacePort(fortitudeBaseUrl.TrimEnd('/'), port));
         }
 
         /// <summary>
@@ -239,7 +242,7 @@ public static class FortitudeExtensions
         /// <exception cref="Exception">
         /// Thrown when an error occurs while starting the client.
         /// </exception>
-        public static async Task<FortitudeClient> ConnectAsync(
+        public static async Task<(FortitudeClient, string)> ConnectAsync(
             string fortitudeBaseUrl,
             ILoggerFactory loggerFactory)
         {
@@ -250,10 +253,11 @@ public static class FortitudeExtensions
             var logger = loggerFactory.CreateLogger<FortitudeClient>();
 
             var fortitude = new FortitudeClient(logger);
+            var port = -1;
 
             try
             {
-                await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
+                port = await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
             }
             catch (Exception ex)
             {
@@ -263,7 +267,32 @@ public static class FortitudeExtensions
             
             logger.LogInformation("Fortitude server UI live at {Url}...", $"{fortitudeBaseUrl.TrimEnd('/')}/fortitude");
 
-            return fortitude;
+            return (fortitude, ReplacePort(fortitudeBaseUrl.TrimEnd('/'), port));
+        }
+        
+        /// <summary>
+        /// Replaces the port of a given URL with a new port.
+        /// If the original URL has no port, the port will be added.
+        /// </summary>
+        /// <param name="url">The input URL.</param>
+        /// <param name="newPort">The port number to set.</param>
+        /// <returns>The URL with the updated port.</returns>
+        /// <exception cref="ArgumentNullException">If url is null or empty.</exception>
+        /// <exception cref="UriFormatException">If the URL is invalid.</exception>
+        public static string ReplacePort(string url, int newPort)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                throw new ArgumentNullException(nameof(url));
+
+            var uri = new Uri(url, UriKind.Absolute);
+
+            // Create a new UriBuilder from the original Uri
+            var builder = new UriBuilder(uri)
+            {
+                Port = newPort
+            };
+
+            return builder.Uri.ToString();
         }
     }
 
@@ -327,4 +356,6 @@ public static class FortitudeExtensions
             {
             }
         }
+        
+        
     }

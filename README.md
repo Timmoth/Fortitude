@@ -16,6 +16,8 @@ With Fortitude, your tests can:
 - **Perform true black-box integration** tests without fragile mocks or stubs
 - **Track, assert, and wait for requests** to ensure the SUT interacts with external services correctly
 - **Simulate realistic responses** so your SUT thinks it’s calling real APIs
+- **Run multiple tests concurrently** against the same mocked service without conflicts, thanks to per-client port reservation
+
 
 Fortitude keeps expected behavior close to the test code, increases code coverage, and reduces the complexity of maintaining mocks. Essentially, it gives you full control over your SUT’s external dependencies while letting your tests remain fast, reliable, and expressive.
 
@@ -26,7 +28,8 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 docker pull aptacode/fortitude-server:latest
 
 # Run the container
-docker run -p 5185:8080 aptacode/fortitude-server:latest
+docker run -p 54000-54100:54000-54100 aptacode/fortitude-server:latest
+
 ```
 
 ### Example
@@ -40,7 +43,7 @@ To run the example tests:
 dotnet run --project ./Fortitude.Server/
 
 # Or the docker container
-docker run -p 5185:8080 aptacode/fortitude-server:latest
+docker run -p 4000-54100:54000-54100 aptacode/fortitude-server:latest
 
 # Run the tests
 dotnet test ./Examples/Fortitude.Example.Tests
@@ -64,7 +67,7 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
     public async Task CreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
         // Given: Fortitude fake server simulating the external API
-        var fortitude = await FortitudeServer.ConnectAsync(FortitudeBase, output);
+        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(FortitudeBase, output);
 
         var expectedName = "Alice";
         var expectedEmail = "alice@example.com";
@@ -89,7 +92,7 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
                         // Configure your SUT to point at the Fortitude Server
-                        ["ExternalApi:BaseUrl"] = $"{FortitudeBase}/"
+                        ["ExternalApi:BaseUrl"] = mockServiceUrl
                     });
                 });
             })
@@ -147,30 +150,31 @@ When you start the Fortitude Server a Blazor front end that can be used to monit
 [Fortitude Server Middleware]
     │
     │ 5. Intercepts request (catch-all middleware)
-    │ 6. Forwards request → Fortitude Client via SignalR
+    │ 6. Determines the port the request was sent to
+    │ 7. Routes the request to the client assigned to that port
     ▼
 [Fortitude Client / Test]
     │
-    │ 7. Matches request using:
+    │ 8. Matches request using:
     │      - Method
     │      - Route
     │      - Headers
     │      - Query params
     │      - Body predicates
     │
-    │ 8. Selects last matching handler → produces a FortitudeResponse
+    │ 9. Selects last matching handler → produces a FortitudeResponse
     ▼
 [Fortitude Server]
     │
-    │ 9. Returns the fake response to the SUT
+    │ 10. Returns the fake response to the SUT
     ▼
 [SUT Service]
     │
-    │ 10. Processes the response as if from a real dependency
+    │ 11. Processes the response as if from a real dependency
     ▼
 [Test Code]
     │
-    │ 11. Assert on outputs, triggered flows, and the returned data
+    │ 12. Assert on outputs, triggered flows, and the returned data
     ▼
 [End]
 ```
@@ -206,6 +210,10 @@ Primary client is .NET, shared API definitions are not yet available, running th
 
 **Why is it called Fortitude?**  
 It's named after Operation Fortitude, a WW2 deception campaign, reflecting simulated external behavior.
+
+**Can I run multiple tests or services in parallel?**  
+Yes! Fortitude automatically assigns each client a unique port from the configured range.  
+This ensures each test or service mock is isolated, preventing port conflicts and enabling true parallel execution.
 
 
 ## **Operation Fortitude in history**
