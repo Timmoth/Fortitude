@@ -219,4 +219,13 @@ public sealed class FortitudeResponse
     
     private void ReplaceHeaders(Dictionary<string, string> headers)
         => Headers = new Dictionary<string, string>(headers, StringComparer.OrdinalIgnoreCase);
+    
+    public override string ToString()
+    {
+        var bodyInfo = Body == null ? "null" : $"{Body.Length} bytes";
+        var headerInfo = Headers?.Count > 0 ? $"{Headers.Count} headers" : "no headers";
+
+        return $"Status {Status} ({ContentType}), Body: {bodyInfo}, {headerInfo} [RequestId: {RequestId}]";
+    }
+
 }

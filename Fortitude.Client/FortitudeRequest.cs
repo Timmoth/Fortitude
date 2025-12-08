@@ -171,4 +171,17 @@ public class FortitudeRequest
             Body = bodyBytes
         };
     }
+    
+    /// <summary>
+    /// Returns a condensed summary of the request suitable for logging.
+    /// </summary>
+    public override string ToString()
+    {
+        // METHOD /route?query  (ContentType: ...) [id]
+        var query = string.IsNullOrEmpty(RawQuery) ? "" : RawQuery;
+        var contentType = string.IsNullOrEmpty(ContentType) ? "" : $" (ContentType: {ContentType})";
+
+        return $"{Method} {Route}{query}{contentType} [RequestId: {RequestId}]";
+    }
+
 }

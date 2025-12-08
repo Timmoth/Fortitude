@@ -35,14 +35,14 @@ namespace Fortitude.Server
         public async Task InvokeAsync(HttpContext ctx)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
-
-            _logger.LogInformation("Middleware invoked for {Method} {Path}", ctx.Request.Method, ctx.Request.Path);
-
+            
             if (ctx.Request.Path.StartsWithSegments("/fortitude", StringComparison.OrdinalIgnoreCase))
             {
                 await _next(ctx).ConfigureAwait(false);
                 return;
             }
+
+            _logger.LogInformation("Middleware invoked for {Method} {Path}", ctx.Request.Method, ctx.Request.Path);
 
             var requestId = Guid.NewGuid();
             FortitudeRequest req;

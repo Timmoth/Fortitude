@@ -21,6 +21,14 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
+var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+lifetime.ApplicationStarted.Register(() =>
+{
+    app.Logger.LogInformation("Fortitude Server Live UI is now running on: {Urls}", 
+        string.Join(", ", app.Urls.Select(u => $"{u.TrimEnd('/')}/fortitude")));
+});
+
+
 app.UseMiddleware<FortitudeMiddleware>();
 
 app.MapHub<FortitudeHub>("/fortitude/hub");

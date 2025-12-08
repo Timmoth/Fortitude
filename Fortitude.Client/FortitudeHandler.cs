@@ -28,18 +28,15 @@ public class FortitudeHandlerBuilder
     private readonly Dictionary<string, string> _queryParams = new(StringComparer.OrdinalIgnoreCase);
     private Func<byte[]?, bool>? _bodyPredicate;
     private string? _route;
-
+    
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandlerBuilder" />.
     /// </summary>
     /// <param name="fortitudeClient">The client to attach handlers to.</param>
     /// <param name="method">Optional initial HTTP method.</param>
-    public FortitudeHandlerBuilder(FortitudeClient fortitudeClient, string? method = null)
+    public FortitudeHandlerBuilder(FortitudeClient fortitudeClient)
     {
         _client = fortitudeClient ?? throw new ArgumentNullException(nameof(fortitudeClient));
-
-        if (!string.IsNullOrWhiteSpace(method))
-            Method(method);
     }
 
     #region HTTP Methods

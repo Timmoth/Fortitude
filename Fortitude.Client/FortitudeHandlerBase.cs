@@ -157,4 +157,41 @@ public class FortitudeHandler
                 }
         }
     }
+    
+    public override string ToString()
+    {
+        var parts = new List<string>();
+
+        // Methods
+        if (_methods.Any())
+            parts.Add($"[{string.Join(", ", _methods)}]");
+        else
+            parts.Add("[ANY]");
+
+        // Route
+        parts.Add(_route ?? "*");
+
+        // Query parameters
+        if (_queryParams.Any())
+        {
+            var qp = string.Join("&",
+                _queryParams.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+            parts[^1] += $"?{qp}";
+        }
+
+        // Headers
+        if (_headers.Any())
+        {
+            var hdr = string.Join(", ",
+                _headers.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+            parts.Add($"(Headers: {hdr})");
+        }
+
+        // Body predicate indicator
+        if (_bodyPredicate != null)
+            parts.Add("(Body: predicate)");
+
+        return string.Join(" ", parts);
+    }
+
 }

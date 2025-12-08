@@ -109,15 +109,34 @@
                                             <span class="font-medium">Body:</span>
                                             @if (r.Body != null && r.Body.Length > 0)
                                             {
-                                                <pre class="bg-gray-100 p-2 rounded overflow-x-auto">
-@System.Text.Encoding.UTF8.GetString(r.Body)
-                                                </pre>
+                                                string bodyText = System.Text.Encoding.UTF8.GetString(r.Body);
+
+                                                if (!string.IsNullOrWhiteSpace(r.ContentType) &&
+                                                    r.ContentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    try
+                                                    {
+                                                        // Try to parse and pretty-print JSON
+                                                        var jsonDoc = System.Text.Json.JsonDocument.Parse(bodyText);
+                                                        bodyText = System.Text.Json.JsonSerializer.Serialize(jsonDoc, new System.Text.Json.JsonSerializerOptions
+                                                        {
+                                                            WriteIndented = true
+                                                        });
+                                                    }
+                                                    catch
+                                                    {
+                                                        // If parsing fails, just leave the raw string
+                                                    }
+                                                }
+
+                                                <pre class="bg-gray-100 p-2 rounded overflow-x-auto">@bodyText</pre>
                                             }
                                             else
                                             {
                                                 <span class="text-gray-500">Empty</span>
                                             }
                                         </div>
+
                                     </div>
 
                                     <!-- Response Details -->
@@ -142,15 +161,36 @@
                                             </div>
                                             <div>
                                                 <span class="font-medium">Body:</span>
-                                                @if (resp.Body != null)
+                                                @if (resp.Body != null && resp.Body.Length > 0)
                                                 {
-                                                    <pre class="bg-gray-100 p-2 rounded overflow-x-auto">@resp.Body.FromMessageBody()</pre>
+                                                    string bodyText = System.Text.Encoding.UTF8.GetString(resp.Body);
+
+                                                    if (!string.IsNullOrWhiteSpace(resp.ContentType) &&
+                                                        resp.ContentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        try
+                                                        {
+                                                            // Parse and pretty-print JSON
+                                                            var jsonDoc = System.Text.Json.JsonDocument.Parse(bodyText);
+                                                            bodyText = System.Text.Json.JsonSerializer.Serialize(jsonDoc, new System.Text.Json.JsonSerializerOptions
+                                                            {
+                                                                WriteIndented = true
+                                                            });
+                                                        }
+                                                        catch
+                                                        {
+                                                            // If parsing fails, leave the raw string
+                                                        }
+                                                    }
+
+                                                    <pre class="bg-gray-100 p-2 rounded overflow-x-auto">@bodyText</pre>
                                                 }
                                                 else
                                                 {
                                                     <span class="text-gray-500">Empty</span>
                                                 }
                                             </div>
+
                                         }
                                         else
                                         {

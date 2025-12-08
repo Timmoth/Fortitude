@@ -43,7 +43,7 @@ public class FortitudeClient : IAsyncDisposable
             throw new ArgumentNullException(nameof(handler));
 
         _handlers.Add(handler);
-        _logger.LogInformation("Handler added: {HandlerName}", handler.GetType().Name);
+        _logger.LogInformation("Registered Handler: {HandlerName}", handler.ToString());
     }
 
     /// <summary>
@@ -74,9 +74,6 @@ public class FortitudeClient : IAsyncDisposable
         {
             try
             {
-                _logger.LogInformation("Incoming Fortitude request: {RequestId} {Method} {Route}",
-                    req.RequestId, req.Method, req.Route);
-
                 await HandleIncomingAsync(req);
             }
             catch (Exception ex)
@@ -143,18 +140,26 @@ public class FortitudeClient : IAsyncDisposable
         if (_connection == null)
             return;
 
-        foreach (var handler in _handlers.Where(h => h.Matches(request)))
+        for (int i = _handlers.Count - 1; i >= 0; i--)
         {
-            _logger.LogInformation("Handler matched: {HandlerName} for request {RequestId}",
-                handler.GetType().Name, request.RequestId);
-
+            var handler = _handlers[i];
+            if (!handler.Matches(request))
+            {
+                continue;
+            }
+            
             var response = await handler.HandleRequestAsync(request);
+            
+            _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
+            _logger.LogInformation("[Handled] {response}", response);
+
             await _connection.InvokeAsync("SubmitResponse", response);
             return;
         }
 
-        _logger.LogWarning("No handler matched request {RequestId}. Returning NotFound.", request.RequestId);
-        await _connection.InvokeAsync("SubmitResponse",
-            new FortitudeResponse(request.RequestId).MethodNotImplemented());
+        var defaultResponse = new FortitudeResponse(request.RequestId).MethodNotImplemented();
+        _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
+        _logger.LogWarning("[Ignored] {defaultResponse}.", defaultResponse);
+        await _connection.InvokeAsync("SubmitResponse",defaultResponse);
     }
 }
