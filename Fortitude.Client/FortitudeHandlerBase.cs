@@ -21,6 +21,8 @@ public class FortitudeHandler
     private readonly List<TaskCompletionSource<FortitudeRequest?>> _waiters = new();
     private readonly object _waitersLock = new();
 
+    public bool Enabled { get; set; } = true;
+    
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandler" /> with an asynchronous responder.
     /// </summary>
@@ -70,6 +72,7 @@ public class FortitudeHandler
     /// </summary>
     public bool Matches(FortitudeRequest req)
     {
+        if (!Enabled) return false;
         if (_methods.Any() && !_methods.Contains(req.Method)) return false;
         if (_route != null && !_route.Equals(req.Route, StringComparison.OrdinalIgnoreCase)) return false;
 

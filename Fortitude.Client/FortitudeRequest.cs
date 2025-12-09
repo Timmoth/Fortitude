@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http;
 
@@ -183,5 +184,64 @@ public class FortitudeRequest
 
         return $"{Method} {Route}{query}{contentType} [RequestId: {RequestId}]";
     }
+    
+    public string ToCurl()
+    {
+        var sb = new StringBuilder();
+
+        sb.Append("curl");
+
+        // Method
+        sb.Append($" -X {Method}");
+
+        // Headers
+        foreach (var header in Headers)
+        {
+            foreach (var value in header.Value)
+            {
+                var headerValue = $"{header.Key}: {value}";
+                if (headerValue.Contains('"'))
+                {
+                    sb.Append($" -H '{headerValue.Replace("'", "'\\''")}'");
+                }
+                else
+                {
+                    sb.Append($" -H \"{headerValue}\"");
+                }
+
+            }
+        }
+
+        // Cookies (cURL cookie header)
+        if (Cookies.Count > 0)
+        {
+            var cookieString = string.Join("; ", Cookies.Select(c => $"{c.Key}={c.Value}"));
+            sb.Append($" -H \"Cookie: {cookieString}\"");
+        }
+
+        // Body
+        if (Body is { Length: > 0 })
+        {
+            // Try to decode as UTF8; otherwise base64 encode
+            string bodyString;
+
+            try
+            {
+                bodyString = Encoding.UTF8.GetString(Body);
+            }
+            catch
+            {
+                bodyString = Convert.ToBase64String(Body);
+            }
+
+            sb.Append($" --data '{bodyString.Replace("'", "\\'")}'");
+        }
+
+        // Final URL
+        sb.Append($" \"{Url}\"");
+
+        return sb.ToString();
+    }
+
 
 }
