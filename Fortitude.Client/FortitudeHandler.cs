@@ -29,6 +29,7 @@ public class FortitudeHandlerBuilder
     private Func<byte[]?, bool>? _bodyPredicate;
     private string? _route;
     private Func<FortitudeRequest, bool>? _requestPredicate;
+    
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandlerBuilder" />.
     /// </summary>
@@ -194,7 +195,7 @@ public class FortitudeHandlerBuilder
 
         var handler = new FortitudeHandler(
             _methods,
-            _route,
+            _route,         
             _headers,
             _queryParams,
             _bodyPredicate,

@@ -6,15 +6,10 @@ using Xunit.Abstractions;
 
 namespace Tests;
 
-public class FortitudeClientTests
+public class FortitudeClientTests(ITestOutputHelper output)
 {
-    private static string _fortitudeBaseUrl = "http://localhost:5185";
-    private readonly ITestOutputHelper _output;
+    private static readonly string FortitudeBaseUrl = "http://localhost:5185";
 
-    public FortitudeClientTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
     public class FakeUser
     {
         public Guid Id { get; set; } = Guid.NewGuid();
@@ -23,7 +18,7 @@ public class FortitudeClientTests
     public async Task Test1()
     {
         // Given
-        var (fortitude, fortitudeUrl) = await FortitudeServer.ConnectAsync(_fortitudeBaseUrl, _output);
+        var (fortitude, fortitudeUrl) = await FortitudeServer.ConnectAsync(FortitudeBaseUrl, output);
 
         var fakeUser = new FakeUser();
         var handler = fortitude.Accepts()
@@ -35,10 +30,10 @@ public class FortitudeClientTests
             });
         
         using var http = new HttpClient();
-        var response = await http.GetAsync($"{fortitudeUrl}/users/{fakeUser.Id}");
+        var response = await http.GetAsync($"{fortitudeUrl}users/{fakeUser.Id}");
 
         var body = await response.Content.ReadAsStringAsync();
-        _output.WriteLine($"Response: {body}");
+        output.WriteLine($"Response: {body}");
 
         // Then
         await fortitude.StopAsync();
@@ -67,7 +62,7 @@ public class FortitudeClientTests
         // Given
         
         // Start Fortitude client
-        var (fortitude, fortitudeUrl) = await FortitudeServer.ConnectAsync(_fortitudeBaseUrl, _output);
+        var (fortitude, fortitudeUrl) = await FortitudeServer.ConnectAsync(FortitudeBaseUrl, output);
 
         // Define handler for POST /users with header and query param checks
         var handler = fortitude.Accepts()
@@ -97,7 +92,7 @@ public class FortitudeClientTests
         var userRequest = new CreateUserRequest { Name = "Alice", Age = 30 };
         var requestBody = new StringContent(JsonSerializer.Serialize(userRequest), Encoding.UTF8, "application/json");
 
-        var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{_fortitudeBaseUrl}/users?source=unit-test")
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{fortitudeUrl}users?source=unit-test")
         {
             Content = requestBody
         };
@@ -105,7 +100,7 @@ public class FortitudeClientTests
 
         var responseMessage = await http.SendAsync(httpRequest);
         var responseBody = await responseMessage.Content.ReadAsStringAsync();
-        _output.WriteLine($"Response: {responseBody}");
+        output.WriteLine($"Response: {responseBody}");
 
 
         // Then

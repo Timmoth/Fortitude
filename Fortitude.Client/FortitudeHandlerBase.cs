@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Routing.Template;
+using Microsoft.AspNetCore.Routing;
 
 namespace Fortitude.Client;
 
@@ -11,6 +14,7 @@ public class FortitudeHandler
     private readonly Func<FortitudeRequest, FortitudeResponse, Task> _asyncResponder;
     private readonly Func<byte[]?, bool>? _bodyPredicate;
     private Func<FortitudeRequest, bool>? _requestPredicate;
+    private readonly RouteTemplate? _routeTemplate;
 
     private readonly Dictionary<string, string> _headers;
     private readonly HashSet<string> _methods;
@@ -18,6 +22,7 @@ public class FortitudeHandler
 
     private readonly ConcurrentQueue<FortitudeRequest> _receivedRequests = new();
     private readonly string? _route;
+
     private readonly List<TaskCompletionSource<FortitudeRequest?>> _waiters = new();
     private readonly object _waitersLock = new();
 
@@ -40,6 +45,7 @@ public class FortitudeHandler
         _queryParams = queryParams ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         _bodyPredicate = bodyPredicate;
         _requestPredicate = requestPredicate;
+        _routeTemplate = route != null ? TemplateParser.Parse(route) : null;
         _asyncResponder = asyncResponder ?? throw new ArgumentNullException(nameof(asyncResponder));
     }
 
@@ -74,7 +80,17 @@ public class FortitudeHandler
     {
         if (!Enabled) return false;
         if (_methods.Any() && !_methods.Contains(req.Method)) return false;
-        if (_route != null && !_route.Equals(req.Route, StringComparison.OrdinalIgnoreCase)) return false;
+        
+        if (_routeTemplate != null)
+        {
+            // Define the template
+            var matcher = new TemplateMatcher(_routeTemplate, new RouteValueDictionary());
+            var dict = new RouteValueDictionary();
+            if (!matcher.TryMatch(req.Route, dict))
+            {
+                return false;
+            }
+        }
 
         foreach (var header in _headers)
             if (!req.Headers.TryGetValue(header.Key, out var values) || !values.Contains(header.Value))

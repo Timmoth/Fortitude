@@ -1,3 +1,4 @@
+using System.Net;
 using Fortitude.Example.Api;
 using Microsoft.Extensions.Options;
 
@@ -92,8 +93,21 @@ namespace Fortitude.Example.Api
             await http.GetFromJsonAsync<IEnumerable<User>>("users")
             ?? Enumerable.Empty<User>();
 
-        public async Task<User?> GetByIdAsync(int id) =>
-            await http.GetFromJsonAsync<User>($"users/{id}");
+        public async Task<User?> GetByIdAsync(int id)
+        {
+            var response = await http.GetAsync($"users/{id}");
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return null;
+
+            if (!response.IsSuccessStatusCode)
+                throw new HttpRequestException(
+                    $"Request failed: {response.StatusCode} ({(int)response.StatusCode})");
+
+            return await response.Content.ReadFromJsonAsync<User>();
+        }
+
+           
 
         public async Task<User> CreateAsync(User user)
         {

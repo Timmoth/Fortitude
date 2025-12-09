@@ -6,55 +6,80 @@ using Microsoft.AspNetCore.Hosting.StaticWebAssets;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
-// -----------------------------
-// Determine port range
-// -----------------------------
-
-int portMin, portMax;
-
-// Try reading from environment variables first
-string? minEnv = Environment.GetEnvironmentVariable("PORT_MIN");
-string? maxEnv = Environment.GetEnvironmentVariable("PORT_MAX");
-
-if (int.TryParse(minEnv, out var envMin) &&
-    int.TryParse(maxEnv, out var envMax) &&
-    envMin > 0 && envMax > envMin && envMax <= 65535)
+// Helper: parse ports string like "8080", "8080,8082", "8080-8085"
+static IEnumerable<int> ParsePorts(string? portsEnv)
 {
-    portMin = envMin;
-    portMax = envMax;
+    if (string.IsNullOrWhiteSpace(portsEnv)) yield break;
+
+    foreach (var token in portsEnv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        if (token.Contains('-'))
+        {
+            var parts = token.Split('-', StringSplitOptions.TrimEntries);
+            if (parts.Length == 2
+                && int.TryParse(parts[0], out var start)
+                && int.TryParse(parts[1], out var end)
+                && start > 0 && end >= start && end <= 65535)
+            {
+                for (int p = start; p <= end; p++) yield return p;
+            }
+        }
+        else if (int.TryParse(token, out var single) && single is > 0 and <= 65535)
+        {
+            yield return single;
+        }
+    }
+}
+
+var portsEnv = Environment.GetEnvironmentVariable("PORTS");
+var singlePortEnv = Environment.GetEnvironmentVariable("PORT"); // fallback single port
+
+List<int> requestedPorts;
+if (!string.IsNullOrWhiteSpace(portsEnv))
+{
+    requestedPorts = ParsePorts(portsEnv).Distinct().OrderBy(p => p).ToList();
+}
+else if (!string.IsNullOrWhiteSpace(singlePortEnv) && int.TryParse(singlePortEnv, out var single) && single is > 0 and <= 65535)
+{
+    requestedPorts = [single];
 }
 else
 {
-    portMin = 54000;
-    portMax = portMin + 100;
+    requestedPorts = [];
 }
 
-builder.WebHost.ConfigureKestrel(options =>
+// If ports were requested, configure Kestrel to listen on each of them
+if (requestedPorts.Count > 0)
 {
-    bool bound = false;
-
-    for (int port = portMin; port <= portMax; port++)
+    builder.WebHost.ConfigureKestrel(options =>
     {
-        try
-        {
-            options.Listen(IPAddress.Any, port);
-            builder.Configuration["Fortitude:SelectedPort"] = port.ToString();
-            bound = true;
-        }
-        catch
-        {
-            // Port is probably in use — skip silently
-        }
-    }
+        var bound = new List<int>();
 
-    if (!bound)
-    {
-        throw new InvalidOperationException(
-            $"No free ports found in range {portMin}–{portMax}");
-    }
-});
+        foreach (var port in requestedPorts)
+        {
+            try
+            {
+                // Attempt to bind; if the port is already in use the call will throw
+                options.Listen(IPAddress.Any, port);
+                bound.Add(port);
+            }
+            catch (Exception ex)
+            {
+                // Log and continue. Don't crash immediately so we can try other ports.
+                Console.WriteLine($"[Fortitude] Warning: could not bind to port {port}: {ex.Message}");
+            }
+        }
 
+        if (bound.Count == 0)
+        {
+            throw new InvalidOperationException($"Fortitude: Could not bind to any requested port(s): {string.Join(',', requestedPorts)}");
+        }
+
+        // Store the list of successful ports in configuration for later logging/usage
+        builder.Configuration["Fortitude:SelectedPorts"] = string.Join(',', bound);
+        Console.WriteLine($"[Fortitude] Bound to ports: {string.Join(',', bound)}");
+    });
+}
 
 builder.Services.AddSingleton<PendingRequestStore>();
 builder.Services.AddSingleton<PortReservationService>();
@@ -73,6 +98,7 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
+
 var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
 lifetime.ApplicationStarted.Register(() =>
 {
@@ -80,16 +106,28 @@ lifetime.ApplicationStarted.Register(() =>
     var server = app.Services.GetRequiredService<IServer>();
 
     portReservationService.Initialize(server);
-    app.Logger.LogInformation("[Port Range] Using ports {portMin}–{portMax}", portMin, portMax);
-
-    var rawUrl = app.Urls.FirstOrDefault() ?? "";
-    var displayUrl = rawUrl.Replace("0.0.0.0", "localhost");
-
-    app.Logger.LogInformation(
-        "Fortitude Server Live UI is now running on: {Url}",
-        $"{displayUrl.TrimEnd('/')}/fortitude"
-    );
+    
+    // Use selected ports if present, otherwise fall back to app.Urls (ASPNETCORE_URLS)
+    var selected = builder.Configuration["Fortitude:SelectedPorts"];
+    if (!string.IsNullOrEmpty(selected))
+    {
+        var ports = selected.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var p in ports)
+        {
+            app.Logger.LogInformation("Fortitude Server Live UI is now running on: {Url}", $"http://localhost:{p}/fortitude");
+        }
+    }
+    else
+    {
+        // app.Urls may contain one or multiple URLs configured via ASPNETCORE_URLS
+        foreach (var rawUrl in app.Urls)
+        {
+            var displayUrl = rawUrl.Replace("0.0.0.0", "localhost");
+            app.Logger.LogInformation("Fortitude Server Live UI is now running on: {Url}", $"{displayUrl.TrimEnd('/')}/fortitude");
+        }
+    }
 });
+
 
 app.UseMiddleware<FortitudeMiddleware>();
 

@@ -1,8 +1,9 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Template;
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
-using Microsoft.Extensions.Logging;
 
 namespace Fortitude.Client;
 
@@ -32,7 +33,35 @@ public static class FortitudeExtensions
             throw new InvalidOperationException("Failed to deserialize JSON data.", ex);
         }
     }
+    
+    /// <summary>
+    /// Attempts to extract a named route parameter from a route value given a route template.
+    /// </summary>
+    /// <param name="routeValue">The actual route value, e.g. "/users/123"</param>
+    /// <param name="pattern">The route template, e.g. "/users/{id}"</param>
+    /// <param name="parameterName">The name of the parameter to extract, e.g. "id"</param>
+    /// <returns>The parameter value if matched; otherwise null.</returns>
+    public static object? GetRouteParameter(this string routeValue, string pattern, string parameterName)
+    {
+        if (string.IsNullOrEmpty(routeValue)) 
+            throw new ArgumentNullException(nameof(routeValue));
+        if (string.IsNullOrEmpty(pattern)) 
+            throw new ArgumentNullException(nameof(pattern));
+        if (string.IsNullOrEmpty(parameterName)) 
+            throw new ArgumentNullException(nameof(parameterName));
 
+        // Parse the template
+        var template = TemplateParser.Parse(pattern);
+        var matcher = new TemplateMatcher(template, new RouteValueDictionary());
+
+        var values = new RouteValueDictionary();
+        bool matched = matcher.TryMatch(routeValue, values);
+
+        if (!matched) return null;
+
+        return values.GetValueOrDefault(parameterName);
+    }
+    
     /// <summary>
     ///     Converts a string into a UTF-8 encoded byte array suitable for use
     ///     as a message body.

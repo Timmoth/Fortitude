@@ -24,11 +24,15 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 ### Running the Fortitude Server via Docker
 
 ```bash
-# Pull the latest Fortitude Server image from Docker Hub:
+# Pull the latest Fortitude Server image:
 docker pull aptacode/fortitude-server:latest
 
-# Run the container
-docker run -p 54000-54100:54000-54100 aptacode/fortitude-server:latest
+# Run on a single specific port
+docker run -e PORT=5005 -p 5005:5005 aptacode/fortitude-server:latest
+
+# Run with a port range (recommended for parallel test execution)
+docker run -e PORTS=5000-5005 -p 5000-5005:5000-5005 aptacode/fortitude-server:latest
+
 
 ```
 
@@ -42,8 +46,8 @@ To run the example tests:
 # Run the Fortitude Server Project
 dotnet run --project ./Fortitude.Server/
 
-# Or the docker container
-docker run -p 4000-54100:54000-54100 aptacode/fortitude-server:latest
+# Or run on a single fixed port
+docker run -e PORT=5005 -p 5005:5005 aptacode/fortitude-server:latest
 
 # Run the tests
 dotnet test ./Examples/Fortitude.Example.Tests
@@ -121,7 +125,7 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
 
 ## Live Server
 
-When you start the Fortitude Server a Blazor front end that can be used to monitor all traffic will be accesible at: 
+When you start the Fortitude Server a Blazor front end that can be used to monitor all traffic will be accesible, for example at: 
 `http://localhost:5185/fortitude` 
 
 <p align="center">
@@ -212,8 +216,8 @@ Primary client is .NET, shared API definitions are not yet available, running th
 It's named after Operation Fortitude, a WW2 deception campaign, reflecting simulated external behavior.
 
 **Can I run multiple tests or services in parallel?**  
-Yes! Fortitude automatically assigns each client a unique port from the configured range.  
-This ensures each test or service mock is isolated, preventing port conflicts and enabling true parallel execution.
+Yes! Fortitude automatically assigns each connected client a unique port from the port range you provide via PORTS.
+This ensures each test instance is isolated, avoiding collisions and enabling true parallel execution.
 
 
 ## **Operation Fortitude in history**
