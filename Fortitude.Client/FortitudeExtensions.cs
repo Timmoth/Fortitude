@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 
 namespace Fortitude.Client;
 
+
 /// <summary>
 ///     Provides extension methods for Fortitude clients.
 /// </summary>

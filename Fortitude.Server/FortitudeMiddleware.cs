@@ -7,30 +7,20 @@ namespace Fortitude.Server
     /// Middleware that forwards HTTP requests to the Fortitude client associated with the port
     /// that the HTTP request arrived on. It then waits for a response and forwards it back.
     /// </summary>
-    public class FortitudeMiddleware
+    public class FortitudeMiddleware(
+        RequestDelegate next,
+        PendingRequestStore pending,
+        IHubContext<FortitudeHub> hub,
+        ILogger<FortitudeMiddleware> logger,
+        RequestTracker tracker,
+        ConnectedClientService connectedClientService)
     {
-        private readonly RequestDelegate _next;
-        private readonly PendingRequestStore _pending;
-        private readonly IHubContext<FortitudeHub> _hub;
-        private readonly ILogger<FortitudeMiddleware> _logger;
-        private readonly RequestTracker _tracker;
-        private readonly ConnectedClientService _connectedClientService;
-
-        public FortitudeMiddleware(
-            RequestDelegate next,
-            PendingRequestStore pending,
-            IHubContext<FortitudeHub> hub,
-            ILogger<FortitudeMiddleware> logger,
-            RequestTracker tracker,
-            ConnectedClientService connectedClientService)
-        {
-            _next = next ?? throw new ArgumentNullException(nameof(next));
-            _pending = pending ?? throw new ArgumentNullException(nameof(pending));
-            _hub = hub ?? throw new ArgumentNullException(nameof(hub));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
-            _connectedClientService = connectedClientService ?? throw new ArgumentNullException(nameof(connectedClientService));
-        }
+        private readonly RequestDelegate _next = next ?? throw new ArgumentNullException(nameof(next));
+        private readonly PendingRequestStore _pending = pending ?? throw new ArgumentNullException(nameof(pending));
+        private readonly IHubContext<FortitudeHub> _hub = hub ?? throw new ArgumentNullException(nameof(hub));
+        private readonly ILogger<FortitudeMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        private readonly RequestTracker _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
+        private readonly ConnectedClientService _connectedClientService = connectedClientService ?? throw new ArgumentNullException(nameof(connectedClientService));
 
         public async Task InvokeAsync(HttpContext ctx)
         {

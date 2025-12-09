@@ -228,4 +228,55 @@ public sealed class FortitudeResponse
         return $"Status {Status} ({ContentType}), Body: {bodyInfo}, {headerInfo} [RequestId: {RequestId}]";
     }
 
+    public HttpResponseMessage ToHttpResponseMessage()
+    {
+        var response = new HttpResponseMessage
+        {
+            StatusCode = (System.Net.HttpStatusCode)Status,
+        };
+
+        HttpContent? content = null;
+
+        // Body handling
+        if (Body is { Length: > 0 })
+        {
+            content = new ByteArrayContent(Body);
+
+            // Content-Type
+            if (!string.IsNullOrWhiteSpace(ContentType))
+            {
+                content.Headers.ContentType = 
+                    System.Net.Http.Headers.MediaTypeHeaderValue.Parse(ContentType);
+            }
+
+            // Content-Length
+            content.Headers.ContentLength = Body.Length;
+        }
+        else
+        {
+            // No body, but ensure empty content object if headers require it
+            content = null;
+        }
+
+        // Assign content
+        if (content != null)
+            response.Content = content;
+
+        // Response headers
+        foreach (var header in Headers)
+        {
+            // Try add to response headers first
+            if (!response.Headers.TryAddWithoutValidation(header.Key, header.Value))
+            {
+                // If not a response header, add to content headers (if available)
+                if (response.Content != null)
+                {
+                    response.Content.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+            }
+        }
+        
+        return response;
+    }
+
 }

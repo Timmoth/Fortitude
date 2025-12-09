@@ -60,11 +60,18 @@ dotnet test ./Examples/Fortitude.Example.Tests
 
 ```bash
 # Install via the .NET CLI:
-dotnet add package Fortitude --version 10.0.0
+dotnet add package Fortitude --version 10.0.4
 ```
 
+## Using Fortitude in Tests
 
-Here is a sample Test which connects to the Fortitude Server and intercepts request coming from the SUT
+There are **two ways** to write tests with Fortitude:
+
+### 1. External Mock Server Mode
+
+- You start the Fortitude Server (via Docker or locally)  
+- Your SUT is configured to point to the Fortitude Server URL  
+- Requests leave your service and hit the server, where handlers produce responses  
 
 ```csharp
     [Fact]
@@ -120,6 +127,61 @@ Here is a sample Test which connects to the Fortitude Server and intercepts requ
 
         // Cleanup
         await fortitude.StopAsync();
+    }
+```
+
+### 2. In-Memory / Intercept Mode
+
+- No external server required  
+- Outgoing `HttpClient` calls from your SUT are intercepted **before they leave your process**  
+- Fast, isolated, perfect for unit or functional tests  
+- Handlers are defined in code and can match requests by method, route, headers, query parameters, or body predicates  
+- Responses are generated in memory and returned directly to the SUT
+
+
+```csharp
+[Fact]
+    public async Task CreateUser_HandlesRequestInternally_AndReturnsCreatedResult()
+    {
+        // GIVEN
+        var expectedName = "Alice";
+        var expectedEmail = "alice@example.com";
+        // Create Fortitude Client
+        var fortitude = FortitudeClient.Create(output);
+        
+        // Configure Fortitude Handler
+        var handler = fortitude.Accepts()
+            .Post()
+            .HttpRoute("/users")
+            .Body(body => body.ToJson<User>()?.Email == expectedEmail)
+            .Returns((request, response) =>
+            {
+                var reqObj = request.Body.ToJson<User>()!;
+                response.Created(new User(999, reqObj.Name, reqObj.Email));
+            });
+        
+        // Create SUT
+        var client = factory
+            .WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(s =>
+                {
+                    // Register Fortitude Client
+                    s.AddFortitudeClient(fortitude);
+                });
+            })
+            .CreateClient();
+        
+        // WHEN: Client calls into your SUT API
+        var response = await client.PostAsJsonAsync("/users", new User(0, expectedName, expectedEmail));
+
+        response.EnsureSuccessStatusCode();
+
+        var created = await response.Content.ReadFromJsonAsync<User>();
+        
+        // Then: Response should be what Fortitude returned
+        Assert.NotNull(created);
+        Assert.Equal(999, created!.Id); // ID assigned by external service
     }
 ```
 

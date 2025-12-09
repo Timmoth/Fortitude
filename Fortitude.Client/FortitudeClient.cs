@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
+using Xunit.Abstractions;
 
 namespace Fortitude.Client;
 
@@ -178,5 +179,42 @@ public class FortitudeClient : IAsyncDisposable
         _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
         _logger.LogWarning("[Ignored] {defaultResponse}.", defaultResponse);
         await _connection.InvokeAsync("SubmitResponse",defaultResponse);
+    }
+    
+    public async Task<HttpResponseMessage> TryHandle(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var requestId = Guid.NewGuid();
+
+        var req = await FortitudeRequest.FromHttpRequestMessage(request, requestId).ConfigureAwait(false);
+   
+        for (int i = _handlers.Count - 1; i >= 0; i--)
+        {
+            var handler = _handlers[i];
+            if (!handler.Matches(req))
+            {
+                continue;
+            }
+            
+            var response = await handler.HandleRequestAsync(req);
+            
+            _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
+            _logger.LogInformation("[Handled] {response}", response);
+
+            return response.ToHttpResponseMessage();
+        }
+
+        var defaultResponse = new FortitudeResponse(requestId).MethodNotImplemented();
+        _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
+        _logger.LogWarning("[Ignored] {defaultResponse}.", defaultResponse);
+        return defaultResponse.ToHttpResponseMessage();
+    }
+    
+    public static FortitudeClient Create(
+        ITestOutputHelper logger)
+    {
+        if (logger is null)
+            throw new ArgumentNullException(nameof(logger));
+            
+        return new FortitudeClient(new TestOutputLogger<FortitudeClient>(logger));
     }
 }

@@ -39,7 +39,7 @@ public class FortitudeHandlerBuilder
     {
         _client = fortitudeClient ?? throw new ArgumentNullException(nameof(fortitudeClient));
     }
-
+    
     #region HTTP Methods
 
     /// <summary>

@@ -26,9 +26,14 @@
         <PackageReference Include="Microsoft.AspNetCore.Routing" Version="2.3.0" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0"/>
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
         <PackageReference Include="xunit.abstractions" Version="2.0.3"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Examples\Fortitude.Example.Api\Fortitude.Example.Api.csproj" />
     </ItemGroup>
 
 </Project>

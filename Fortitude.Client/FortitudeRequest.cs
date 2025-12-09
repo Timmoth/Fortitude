@@ -174,6 +174,103 @@ public class FortitudeRequest
     }
     
     /// <summary>
+    ///     Creates a <see cref="FortitudeRequest"/> from an ASP.NET <see cref="HttpRequestMessage"/>.
+    ///     Reads headers, cookies, body, route, query string, and metadata.
+    /// </summary>
+    /// <param name="requestMessage">The HTTP request message containing the request.</param>
+    /// <param name="requestId">Optional explicit request ID. If not provided, a new one is generated.</param>
+    /// <returns>A populated <see cref="FortitudeRequest"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the context or context.Request is null.</exception>
+    public static async Task<FortitudeRequest> FromHttpRequestMessage(
+    HttpRequestMessage requestMessage, Guid? requestId = null)
+{
+    if (requestMessage == null)
+        throw new ArgumentNullException(nameof(requestMessage));
+
+    var uri = requestMessage.RequestUri 
+        ?? throw new ArgumentException("HttpRequestMessage.RequestUri must not be null.");
+
+    // Extract URL parts
+    var baseUrl = $"{uri.Scheme}://{uri.Authority}";
+    var route = uri.AbsolutePath;
+    var rawQuery = uri.Query ?? string.Empty;
+    var url = uri.ToString();
+
+    // Extract headers
+    var headers = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var header in requestMessage.Headers)
+        headers[header.Key] = header.Value.ToArray();
+
+    if (requestMessage.Content != null)
+    {
+        foreach (var header in requestMessage.Content.Headers)
+            headers[header.Key] = header.Value.ToArray();
+    }
+
+    // Extract cookies from "Cookie:" header
+    var cookies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    if (headers.TryGetValue("Cookie", out var cookieValues))
+    {
+        foreach (var cookieHeader in cookieValues)
+        {
+            var parts = cookieHeader.Split(';', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var part in parts)
+            {
+                var kv = part.Split('=', 2);
+                if (kv.Length == 2)
+                    cookies[kv[0].Trim()] = kv[1].Trim();
+            }
+        }
+    }
+
+    // Extract query params
+    var queryParams = Microsoft.AspNetCore.WebUtilities
+        .QueryHelpers.ParseQuery(uri.Query)
+        .ToDictionary(
+            x => x.Key,
+            x => x.Value.ToArray(),
+            StringComparer.OrdinalIgnoreCase
+        );
+
+    // Extract body
+    byte[]? bodyBytes = null;
+    string? contentType = null;
+    long? contentLength = null;
+
+    if (requestMessage.Content != null)
+    {
+        bodyBytes = await requestMessage.Content.ReadAsByteArrayAsync();
+        contentType = requestMessage.Content.Headers.ContentType?.ToString();
+        contentLength = requestMessage.Content.Headers.ContentLength;
+    }
+
+    return new FortitudeRequest
+    {
+        RequestId = requestId ?? Guid.NewGuid(),
+        Method = requestMessage.Method.Method,
+        Protocol = "HTTP/1.1", // HttpRequestMessage doesn't expose this; optional
+        BaseUrl = baseUrl,
+        Route = route,
+        RawQuery = rawQuery,
+        Url = url,
+        Headers = headers,
+        Query = queryParams,
+        Cookies = cookies,
+        Body = bodyBytes,
+        ContentType = contentType,
+        ContentLength = contentLength,
+        // No remote IP/Port available in HttpRequestMessage
+        RemoteIp = null,
+        RemotePort = null,
+        Time = DateTimeOffset.UtcNow
+    };
+}
+
+    
+    /// <summary>
     /// Returns a condensed summary of the request suitable for logging.
     /// </summary>
     public override string ToString()
