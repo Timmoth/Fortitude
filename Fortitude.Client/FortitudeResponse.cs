@@ -8,7 +8,7 @@ namespace Fortitude.Client;
 ///     Represents a response returned by a Fortitude service request, including
 ///     status code, response body, headers, content type, and the originating request ID.
 /// </summary>
-public sealed class FortitudeResponse
+public sealed record FortitudeResponse
 {
     private static readonly JsonSerializerOptions DefaultJsonOptions = JsonSerializerOptions.Web;
 

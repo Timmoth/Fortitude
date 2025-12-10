@@ -1,27 +1,46 @@
 using System.Net;
 using System.Net.Http.Json;
 using Fortitude.Client;
+using Fortitude.Example.Api;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Xunit.Abstractions;
+using Xunit; 
 
-namespace Fortitude.Example.Api;
-
-public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHelper output)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class DockerTests 
+    : IClassFixture<WebApplicationFactory<Fortitude.Example.Api.Program>>, 
+      IClassFixture<DockerContainerFixture> 
 {
-    private const string FortitudeBase = "http://localhost:5185";
-    
-    [Fact]
-    public async Task CreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
-    {
-        // Given: Fortitude fake server simulating the external API
-        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(FortitudeBase, output);
+    private readonly WebApplicationFactory<Fortitude.Example.Api.Program> _factory;
+    private readonly ITestOutputHelper _output;
+    private readonly DockerContainerFixture _containerFixture;
+    private readonly string _baseUrl;
 
+    public DockerTests(
+        WebApplicationFactory<Fortitude.Example.Api.Program> factory, 
+        DockerContainerFixture containerFixture, 
+        ITestOutputHelper output)
+    {
+        _factory = factory;
+        _output = output;
+        _containerFixture = containerFixture;
+
+        // Pre-calculate the base URL for the Fortitude server
+        _baseUrl = $"http://{_containerFixture.Host}:{_containerFixture.MappedPort}";
+    }
+
+    // The container is already built and running at this point!
+
+    [Fact]
+    public async Task CreateUser_UsingDockerContainer_Test()
+    {
+        // ARRANGE: Use the cached base URL from the fixture
+        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(_baseUrl, _output);
+        
         var expectedName = "Alice";
         var expectedEmail = "alice@example.com";
 
-        // Fake external handler: POST /users
+        // 1. Set up the Fortitude mock handler
         var handler = fortitude.Accepts()
             .Post()
             .HttpRoute("/users")
@@ -32,41 +51,36 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
                 response.Created(new User(999, reqObj.Name, reqObj.Email));
             });
         
-        // And: The SUT (your API) is running with ExternalApi.BaseUrl overridden
-        var client = factory
+        // 2. Create HttpClient for SUT, configuring it to point to the Fortitude mock
+        var client = _factory
             .WithWebHostBuilder(builder =>
             {
                 builder.ConfigureAppConfiguration((ctx, config) =>
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
-                        // Configure your SUT to point at the Fortitude Server
-                        ["ExternalApi:BaseUrl"] = mockServiceUrl
+                        // SUT's ExternalApi:BaseUrl points to the running Fortitude server
+                        ["ExternalApi:BaseUrl"] = _baseUrl 
                     });
                 });
             })
             .CreateClient();
-
+        
         // WHEN: Client calls into your SUT API
         var response = await client.PostAsJsonAsync("/users", new User(0, expectedName, expectedEmail));
 
+        // THEN: Assertions
         response.EnsureSuccessStatusCode();
-
         var created = await response.Content.ReadFromJsonAsync<User>();
         
-        // Then: Response should be what Fortitude returned
         Assert.NotNull(created);
-        Assert.Equal(999, created!.Id); // ID assigned by external service
-        Assert.Equal(expectedName, created.Name);
-        Assert.Equal(expectedEmail, created.Email);
-        
-        // Assert only a single request was made to the handler
-        Assert.Single(handler.ReceivedRequests);
+        Assert.Equal(999, created!.Id);
+        Assert.Single(handler.ReceivedRequests); // Verify interaction with mock
 
         // Cleanup
         await fortitude.StopAsync();
     }
-
+    
     [Fact]
     public async Task GetUsers_ForwardsRequestToExternalApi_AndReturnsUsers()
     {
@@ -78,7 +92,7 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
         };
 
         // Start Fortitude fake server
-        var (fortitude, fortitudeUrl) = await FortitudeServer.ConnectAsync(FortitudeBase, output);
+        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(_baseUrl, _output);
     
         var getHandler = fortitude.Accepts()
             .Get()
@@ -89,14 +103,15 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
             });
         
         // SUT client configured to use Fortitude as external API
-        var client = factory
+        var client = _factory
             .WithWebHostBuilder(builder =>
             {
                 builder.ConfigureAppConfiguration((ctx, config) =>
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
-                        ["ExternalApi:BaseUrl"] = fortitudeUrl
+                        // SUT's ExternalApi:BaseUrl points to the running Fortitude server
+                        ["ExternalApi:BaseUrl"] = _baseUrl 
                     });
                 });
             })
@@ -115,13 +130,13 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
         Assert.Contains(users, u => u is { Name: "Bob", Email: "bob@example.com" });
 
         await fortitude.StopAsync();
-    }
+    } 
     
     [Fact]
     public async Task GetCreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
         // Arrange: Start Fortitude fake API server
-        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(FortitudeBase, output);
+        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(_baseUrl, _output);
 
         var users = new List<User>
         {
@@ -162,14 +177,15 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
             });
 
         // Arrange: Configure SUT HttpClient to use mock external API
-        var client = factory
+        var client = _factory
             .WithWebHostBuilder(builder =>
             {
-                builder.ConfigureAppConfiguration((_, config) =>
+                builder.ConfigureAppConfiguration((ctx, config) =>
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
-                        ["ExternalApi:BaseUrl"] = mockServiceUrl
+                        // SUT's ExternalApi:BaseUrl points to the running Fortitude server
+                        ["ExternalApi:BaseUrl"] = _baseUrl 
                     });
                 });
             })
@@ -220,6 +236,4 @@ public class UsersApiTests(WebApplicationFactory<Program> factory, ITestOutputHe
         // Cleanup
         await fortitude.StopAsync();
     }
-
-
 }

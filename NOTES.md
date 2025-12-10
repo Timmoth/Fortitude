@@ -1,10 +1,6 @@
 ```bash
 # Manually build / push fortitude-server
-docker build -t fortitude-server .
-docker tag fortitude-server aptacode/fortitude-server:v10.0.5
-docker tag fortitude-server aptacode/fortitude-server:latest
-docker push aptacode/fortitude-server:v10.0.5             
-docker push aptacode/fortitude-server:latest        
+docker buildx build --platform linux/amd64,linux/arm64 -t aptacode/fortitude-server:v10.0.5 -t aptacode/fortitude-server:latest --push .    
 
 # Build / Pack fortitude client nuget package
 cd Fortitude.Client 

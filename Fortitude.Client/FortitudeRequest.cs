@@ -8,7 +8,7 @@ namespace Fortitude.Client;
 ///     Represents an incoming request captured by a Fortitude client or mock server,
 ///     including method, URL components, headers, cookies, query parameters, and body.
 /// </summary>
-public class FortitudeRequest
+public record FortitudeRequest
 {
     /// <summary>
     ///     The unique identifier for this request.

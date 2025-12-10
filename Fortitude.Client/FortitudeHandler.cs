@@ -22,7 +22,7 @@ public static class FortitudeHandlerExtensions
 /// </summary>
 public class FortitudeHandlerBuilder
 {
-    private readonly FortitudeClient _client;
+    private readonly FortitudeClient? _client;
     private readonly Dictionary<string, string> _headers = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _methods = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _queryParams = new(StringComparer.OrdinalIgnoreCase);
@@ -35,9 +35,9 @@ public class FortitudeHandlerBuilder
     /// </summary>
     /// <param name="fortitudeClient">The client to attach handlers to.</param>
     /// <param name="method">Optional initial HTTP method.</param>
-    public FortitudeHandlerBuilder(FortitudeClient fortitudeClient)
+    public FortitudeHandlerBuilder(FortitudeClient? fortitudeClient)
     {
-        _client = fortitudeClient ?? throw new ArgumentNullException(nameof(fortitudeClient));
+        _client = fortitudeClient;
     }
     
     #region HTTP Methods
@@ -180,7 +180,7 @@ public class FortitudeHandlerBuilder
             responder
         );
 
-        _client.AddHandler(handler);
+        _client?.AddHandler(handler);
         return handler;
     }
 
@@ -203,9 +203,11 @@ public class FortitudeHandlerBuilder
             asyncResponder
         );
 
-        _client.AddHandler(handler);
+        _client?.AddHandler(handler);
         return handler;
     }
 
     #endregion
+    
+
 }

@@ -33,6 +33,9 @@ static IEnumerable<int> ParsePorts(string? portsEnv)
 
 var portsEnv = Environment.GetEnvironmentVariable("PORTS");
 var singlePortEnv = Environment.GetEnvironmentVariable("PORT"); // fallback single port
+builder.Services.Configure<Settings>(
+    builder.Configuration.GetSection("Settings"));
+
 
 List<int> requestedPorts;
 if (!string.IsNullOrWhiteSpace(portsEnv))
@@ -141,7 +144,6 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
 
 app.UseStaticFiles("/fortitude");
 
@@ -153,3 +155,8 @@ app.MapRazorComponents<App>()
 app.MapBlazorHub("/fortitude/_blazor");
 
 app.Run();
+
+public class Settings
+{
+    public bool Broadcast { get; set; } = false; // default = false
+}

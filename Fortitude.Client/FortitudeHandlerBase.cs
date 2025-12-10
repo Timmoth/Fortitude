@@ -218,5 +218,14 @@ public class FortitudeHandler
 
         return string.Join(" ", parts);
     }
+    
+    /// <summary>
+    ///     Starts building a handler.
+    /// </summary>
+    /// <returns>A <see cref="FortitudeHandlerBuilder" /> for fluent configuration.</returns>
+    public static FortitudeHandlerBuilder Accepts()
+    {
+        return new FortitudeHandlerBuilder(null);
+    }
 
 }
