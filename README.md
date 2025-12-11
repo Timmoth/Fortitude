@@ -23,7 +23,7 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 
 ## Docs
 
-*   [mocking](./docs/mocking.md)
+*   [mocking-apis](./docs/mocking.md)
 *   [local-development](./docs/local-development.md)
 *   [aspire-integration-tests](./docs/aspire-integration-tests.md)
 
@@ -66,7 +66,7 @@ dotnet test ./Examples/Fortitude.Example.Tests
 
 ```bash
 # Install via the .NET CLI:
-dotnet add package Fortitude --version 10.0.4
+dotnet add package Fortitude
 ```
 
 ## Using Fortitude in Tests
