@@ -21,6 +21,12 @@ With Fortitude, your tests can:
 
 Fortitude keeps expected behavior close to the test code, increases code coverage, and reduces the complexity of maintaining mocks. Essentially, it gives you full control over your SUT’s external dependencies while letting your tests remain fast, reliable, and expressive.
 
+## Docs
+
+*   [mocking](./docs/mocking.md)
+*   [local-development](./docs/local-development.md)
+*   [aspire-integration-tests](./docs/aspire-integration-tests.md)
+
 ### Running the Fortitude Server via Docker
 
 ```bash
