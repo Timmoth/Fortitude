@@ -93,6 +93,9 @@ public sealed record FortitudeResponse
     public FortitudeResponse Unauthorized(string? message = null)
         => SetText(401, message ?? "Unauthorized");
 
+    public FortitudeResponse NoContent(string? message = null)
+        => SetText(204, message ?? "");
+    
     /// <summary>
     ///     Sets a plain-text response with status 200 (OK).
     /// </summary>
@@ -278,5 +281,4 @@ public sealed record FortitudeResponse
         
         return response;
     }
-
 }

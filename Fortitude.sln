@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Example.Api", "Ex
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Example.AppHost", "Examples\Fortitude.Example.AppHost\Fortitude.Example.AppHost.csproj", "{2107E7C3-B0A7-44B1-A3B5-A1BA5AC0E5BC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fortitude.Example.FakeService", "Examples\Fortitude.Example.FakeService\Fortitude.Example.FakeService.csproj", "{F828AAD0-74C2-4E0B-89AE-3BDDE60BB0B8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,10 +50,15 @@ Global
 		{2107E7C3-B0A7-44B1-A3B5-A1BA5AC0E5BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2107E7C3-B0A7-44B1-A3B5-A1BA5AC0E5BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2107E7C3-B0A7-44B1-A3B5-A1BA5AC0E5BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F828AAD0-74C2-4E0B-89AE-3BDDE60BB0B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F828AAD0-74C2-4E0B-89AE-3BDDE60BB0B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F828AAD0-74C2-4E0B-89AE-3BDDE60BB0B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F828AAD0-74C2-4E0B-89AE-3BDDE60BB0B8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{C997D9EC-6BD0-485A-96B4-D4BA554D3D47} = {021A4559-F978-4F66-8047-134B66A5E209}
 		{D18B5165-29DA-4AE0-87FF-F4BD73CA13C2} = {021A4559-F978-4F66-8047-134B66A5E209}
 		{2107E7C3-B0A7-44B1-A3B5-A1BA5AC0E5BC} = {021A4559-F978-4F66-8047-134B66A5E209}
+		{F828AAD0-74C2-4E0B-89AE-3BDDE60BB0B8} = {021A4559-F978-4F66-8047-134B66A5E209}
 	EndGlobalSection
 EndGlobal

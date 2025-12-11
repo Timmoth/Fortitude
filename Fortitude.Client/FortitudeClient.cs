@@ -9,6 +9,10 @@ namespace Fortitude.Client;
 /// </summary>
 public class FortitudeClient : IAsyncDisposable
 {
+    /// <summary>
+    ///     Gets the port assigned to this client by the Fortitude server.
+    ///     The value is -1 until the client has successfully connected and been assigned a port.
+    /// </summary>
     public int Port { get; private set; } = -1;
     private readonly List<FortitudeHandler> _handlers = new();
     private readonly ILogger<FortitudeClient> _logger;
@@ -181,6 +185,13 @@ public class FortitudeClient : IAsyncDisposable
         await _connection.InvokeAsync("SubmitResponse",defaultResponse);
     }
     
+    /// <summary>
+    ///     Attempts to handle an <see cref="HttpRequestMessage" /> using the registered handlers.
+    ///     This method is intended for internal use by interceptors.
+    /// </summary>
+    /// <param name="request">The <see cref="HttpRequestMessage" /> to handle.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A <see cref="HttpResponseMessage" /> representing the response from the handler.</returns>
     public async Task<HttpResponseMessage> TryHandle(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var requestId = Guid.NewGuid();
@@ -209,6 +220,13 @@ public class FortitudeClient : IAsyncDisposable
         return defaultResponse.ToHttpResponseMessage();
     }
     
+    /// <summary>
+    ///     Creates a new instance of <see cref="FortitudeClient" /> for testing purposes,
+    ///     using an xUnit <see cref="ITestOutputHelper" /> for logging.
+    /// </summary>
+    /// <param name="logger">The xUnit test output helper.</param>
+    /// <returns>A new <see cref="FortitudeClient" /> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="logger" /> is null.</exception>
     public static FortitudeClient Create(
         ITestOutputHelper logger)
     {

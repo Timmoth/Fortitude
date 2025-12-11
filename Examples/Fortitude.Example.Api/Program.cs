@@ -81,7 +81,12 @@ public partial class Program
         });
     }
 }
-public record User(int Id, string Name, string Email);
+public class User(int Id, string Name, string Email)
+{
+    public int Id { get; set; } = Id;
+    public string Name { get; set; } = Name;
+    public string Email { get; set; } = Email;
+}
 
 public interface IUserClient
 {
