@@ -23,7 +23,7 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 
 ## Docs
 
-*   [mocking](./docs/mocking.md)
+*   [mocking-apis](./docs/mocking.md)
 *   [local-development](./docs/local-development.md)
 *   [aspire-integration-tests](./docs/aspire-integration-tests.md)
 
