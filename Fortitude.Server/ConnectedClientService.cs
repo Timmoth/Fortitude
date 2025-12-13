@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Options;
 
 namespace Fortitude.Server;
 
@@ -18,18 +19,22 @@ public class ConnectedClientService
 
     private readonly ILogger<ConnectedClientService> _logger;
     private readonly PortReservationService _portService;
+    private readonly Settings _settings;
 
     /// <summary>
     ///     Initializes a new instance of <see cref="ConnectedClientService" />.
     /// </summary>
     /// <param name="logger">Logger instance.</param>
     /// <param name="portService">Port reservation service.</param>
+    /// <param name="settings"></param>
     public ConnectedClientService(
         ILogger<ConnectedClientService> logger,
-        PortReservationService portService)
+        PortReservationService portService,
+        IOptions<Settings> settings)
     {
         _logger = logger;
         _portService = portService;
+        _settings = settings.Value;
     }
 
     /// <summary>
@@ -60,7 +65,7 @@ public class ConnectedClientService
         if (string.IsNullOrWhiteSpace(connectionId))
             throw new ArgumentException("Connection ID cannot be null or empty.", nameof(connectionId));
 
-        var port = _portService.ReservePort();
+        var port = _settings.Broadcast ? -1 : _portService.ReservePort();
 
         _clientPorts[connectionId] = port;
 

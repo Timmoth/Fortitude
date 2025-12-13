@@ -121,6 +121,66 @@ public class FortitudeClient : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Starts the Fortitude client and connects to the specified server URL.
+    /// </summary>
+    /// <param name="url">The URL of the Fortitude server.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the client is already started.</exception>
+    public async Task<int> StartAsync(HubConnection connection, CancellationToken cancellationToken = default)
+    {
+        if (_connection != null)
+            throw new InvalidOperationException("FortitudeClient is already started.");
+
+        _connection = connection;
+
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        _connection.On<FortitudeRequest>("IncomingRequest", async req =>
+        {
+            try
+            {
+                await HandleIncomingAsync(req);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing request {RequestId}", req.RequestId);
+                if (_connection != null)
+                    await _connection.InvokeAsync("SubmitResponse",
+                        new FortitudeResponse(req.RequestId).InternalServerError(ex.Message), cancellationToken);
+            }
+        });
+
+        try
+        {
+            await _connection.StartAsync(_cts.Token);
+            _logger.LogInformation("Connected to Fortitude server.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to connect to Fortitude server");
+            throw;
+        }
+
+        try
+        {
+            Port = await _connection.InvokeAsync<int>("GetAssignedPort", cancellationToken);
+
+            if (Port > 0)
+                _logger.LogInformation("This client has been assigned port {Port}", Port);
+            else
+                _logger.LogWarning("This client has NOT been assigned a port.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to query assigned port from server.");
+        }
+
+        return Port;
+    }
+
+    
+    /// <summary>
     ///     Stops the Fortitude client and disconnects from the server.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>

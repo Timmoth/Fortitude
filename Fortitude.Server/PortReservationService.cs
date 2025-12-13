@@ -32,9 +32,8 @@ public class PortReservationService
     /// <summary>
     ///     Creates a new instance of <see cref="PortReservationService" />.
     /// </summary>
-    /// <param name="server">ASP.NET Core server instance used to inspect bound endpoints.</param>
     /// <param name="logger">Logger instance.</param>
-    public PortReservationService(IServer server, ILogger<PortReservationService> logger)
+    public PortReservationService(ILogger<PortReservationService> logger)
     {
         _logger = logger;
     }
