@@ -19,15 +19,19 @@ public class InterceptionFilter : IHttpMessageHandlerBuilderFilter
     private readonly IServiceProvider _provider;
 
     public InterceptionFilter(IServiceProvider provider)
-        => _provider = provider;
+    {
+        _provider = provider;
+    }
 
     public Action<HttpMessageHandlerBuilder> Configure(Action<HttpMessageHandlerBuilder> next)
-        => builder =>
+    {
+        return builder =>
         {
             next(builder);
             var handler = ActivatorUtilities.CreateInstance<HttpClientInterceptorMiddleware>(_provider);
             builder.AdditionalHandlers.Add(handler);
         };
+    }
 }
 
 public class HttpClientInterceptorMiddleware(FortitudeClient client) : DelegatingHandler

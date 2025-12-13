@@ -1,4 +1,4 @@
-# Fortitude Server - WIP
+# Fortitude Server
 _Fortitude spins up a local mock server so you can fluently configure HTTP routes, responses, and test scenarios directly from your .NET tests._
 
 <p align="center">
@@ -66,7 +66,7 @@ dotnet test ./Examples/Fortitude.Example.Tests
 
 ```bash
 # Install via the .NET CLI:
-dotnet add package Fortitude --version 10.0.4
+dotnet add package Fortitude
 ```
 
 ## Using Fortitude in Tests

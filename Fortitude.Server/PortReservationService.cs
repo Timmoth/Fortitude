@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.Extensions.Logging;
 
 namespace Fortitude.Server;
 
@@ -15,23 +14,23 @@ namespace Fortitude.Server;
 /// </remarks>
 public class PortReservationService
 {
-    private readonly ILogger<PortReservationService> _logger;
-
     /// <summary>
     ///     Set of all ports that the server is currently bound to.
     /// </summary>
     private readonly HashSet<int> _activePorts = new();
 
+    private readonly object _initializationLock = new();
+    private readonly ILogger<PortReservationService> _logger;
+
     /// <summary>
-    ///     Ports currently reserved via <see cref="ReservePort"/>.
+    ///     Ports currently reserved via <see cref="ReservePort" />.
     /// </summary>
     private readonly ConcurrentDictionary<int, byte> _reservedPorts = new();
 
-    private readonly object _initializationLock = new();
     private bool _initialized;
 
     /// <summary>
-    ///     Creates a new instance of <see cref="PortReservationService"/>.
+    ///     Creates a new instance of <see cref="PortReservationService" />.
     /// </summary>
     /// <param name="server">ASP.NET Core server instance used to inspect bound endpoints.</param>
     /// <param name="logger">Logger instance.</param>
@@ -118,7 +117,6 @@ public class PortReservationService
             }
 
             foreach (var address in addressesFeature.Addresses)
-            {
                 try
                 {
                     var uri = new Uri(address);
@@ -133,14 +131,11 @@ public class PortReservationService
                 {
                     _logger.LogError(ex, "Failed to parse server address: {Address}", address);
                 }
-            }
 
             _initialized = true;
 
             if (!_activePorts.Any())
-            {
                 _logger.LogWarning("PortReservationService: No valid ports extracted from server addresses.");
-            }
         }
     }
 }

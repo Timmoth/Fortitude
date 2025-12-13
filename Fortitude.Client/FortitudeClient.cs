@@ -9,11 +9,6 @@ namespace Fortitude.Client;
 /// </summary>
 public class FortitudeClient : IAsyncDisposable
 {
-    /// <summary>
-    ///     Gets the port assigned to this client by the Fortitude server.
-    ///     The value is -1 until the client has successfully connected and been assigned a port.
-    /// </summary>
-    public int Port { get; private set; } = -1;
     private readonly List<FortitudeHandler> _handlers = new();
     private readonly ILogger<FortitudeClient> _logger;
     private HubConnection? _connection;
@@ -28,6 +23,12 @@ public class FortitudeClient : IAsyncDisposable
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    /// <summary>
+    ///     Gets the port assigned to this client by the Fortitude server.
+    ///     The value is -1 until the client has successfully connected and been assigned a port.
+    /// </summary>
+    public int Port { get; private set; } = -1;
 
     /// <summary>
     ///     Disposes the Fortitude client asynchronously.
@@ -101,11 +102,11 @@ public class FortitudeClient : IAsyncDisposable
             _logger.LogError(ex, "Failed to connect to Fortitude server at {Url}", url);
             throw;
         }
-        
+
         try
         {
-            Port = await _connection.InvokeAsync<int>("GetAssignedPort", cancellationToken: cancellationToken);
-    
+            Port = await _connection.InvokeAsync<int>("GetAssignedPort", cancellationToken);
+
             if (Port > 0)
                 _logger.LogInformation("This client has been assigned port {Port}", Port);
             else
@@ -115,7 +116,7 @@ public class FortitudeClient : IAsyncDisposable
         {
             _logger.LogError(ex, "Failed to query assigned port from server.");
         }
-        
+
         return Port;
     }
 
@@ -162,16 +163,13 @@ public class FortitudeClient : IAsyncDisposable
         if (_connection == null)
             return;
 
-        for (int i = _handlers.Count - 1; i >= 0; i--)
+        for (var i = _handlers.Count - 1; i >= 0; i--)
         {
             var handler = _handlers[i];
-            if (!handler.Matches(request))
-            {
-                continue;
-            }
-            
+            if (!handler.Matches(request)) continue;
+
             var response = await handler.HandleRequestAsync(request);
-            
+
             _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
             _logger.LogInformation("[Handled] {response}", response);
 
@@ -182,9 +180,9 @@ public class FortitudeClient : IAsyncDisposable
         var defaultResponse = new FortitudeResponse(request.RequestId).MethodNotImplemented();
         _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
         _logger.LogWarning("[Ignored] {defaultResponse}.", defaultResponse);
-        await _connection.InvokeAsync("SubmitResponse",defaultResponse);
+        await _connection.InvokeAsync("SubmitResponse", defaultResponse);
     }
-    
+
     /// <summary>
     ///     Attempts to handle an <see cref="HttpRequestMessage" /> using the registered handlers.
     ///     This method is intended for internal use by interceptors.
@@ -197,17 +195,14 @@ public class FortitudeClient : IAsyncDisposable
         var requestId = Guid.NewGuid();
 
         var req = await FortitudeRequest.FromHttpRequestMessage(request, requestId).ConfigureAwait(false);
-   
-        for (int i = _handlers.Count - 1; i >= 0; i--)
+
+        for (var i = _handlers.Count - 1; i >= 0; i--)
         {
             var handler = _handlers[i];
-            if (!handler.Matches(req))
-            {
-                continue;
-            }
-            
+            if (!handler.Matches(req)) continue;
+
             var response = await handler.HandleRequestAsync(req);
-            
+
             _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
             _logger.LogInformation("[Handled] {response}", response);
 
@@ -219,7 +214,7 @@ public class FortitudeClient : IAsyncDisposable
         _logger.LogWarning("[Ignored] {defaultResponse}.", defaultResponse);
         return defaultResponse.ToHttpResponseMessage();
     }
-    
+
     /// <summary>
     ///     Creates a new instance of <see cref="FortitudeClient" /> for testing purposes,
     ///     using an xUnit <see cref="ITestOutputHelper" /> for logging.
@@ -232,7 +227,7 @@ public class FortitudeClient : IAsyncDisposable
     {
         if (logger is null)
             throw new ArgumentNullException(nameof(logger));
-            
+
         return new FortitudeClient(new TestOutputLogger<FortitudeClient>(logger));
     }
 }

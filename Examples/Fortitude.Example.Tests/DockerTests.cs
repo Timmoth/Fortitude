@@ -28,9 +28,7 @@ public sealed class DockerTests
         // Pre-calculate the base URL for the Fortitude server
         _baseUrl = $"http://{_containerFixture.Host}:{_containerFixture.MappedPort}";
     }
-
-    // The container is already built and running at this point!
-
+    
     [Fact]
     public async Task CreateUser_UsingDockerContainer_Test()
     {

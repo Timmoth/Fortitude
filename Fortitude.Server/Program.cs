@@ -12,7 +12,6 @@ static IEnumerable<int> ParsePorts(string? portsEnv)
     if (string.IsNullOrWhiteSpace(portsEnv)) yield break;
 
     foreach (var token in portsEnv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-    {
         if (token.Contains('-'))
         {
             var parts = token.Split('-', StringSplitOptions.TrimEntries);
@@ -20,15 +19,13 @@ static IEnumerable<int> ParsePorts(string? portsEnv)
                 && int.TryParse(parts[0], out var start)
                 && int.TryParse(parts[1], out var end)
                 && start > 0 && end >= start && end <= 65535)
-            {
-                for (int p = start; p <= end; p++) yield return p;
-            }
+                for (var p = start; p <= end; p++)
+                    yield return p;
         }
         else if (int.TryParse(token, out var single) && single is > 0 and <= 65535)
         {
             yield return single;
         }
-    }
 }
 
 var portsEnv = Environment.GetEnvironmentVariable("PORTS");
@@ -39,27 +36,20 @@ builder.Services.Configure<Settings>(
 
 List<int> requestedPorts;
 if (!string.IsNullOrWhiteSpace(portsEnv))
-{
     requestedPorts = ParsePorts(portsEnv).Distinct().OrderBy(p => p).ToList();
-}
-else if (!string.IsNullOrWhiteSpace(singlePortEnv) && int.TryParse(singlePortEnv, out var single) && single is > 0 and <= 65535)
-{
+else if (!string.IsNullOrWhiteSpace(singlePortEnv) && int.TryParse(singlePortEnv, out var single) &&
+         single is > 0 and <= 65535)
     requestedPorts = [single];
-}
 else
-{
     requestedPorts = [];
-}
 
 // If ports were requested, configure Kestrel to listen on each of them
 if (requestedPorts.Count > 0)
-{
     builder.WebHost.ConfigureKestrel(options =>
     {
         var bound = new List<int>();
 
         foreach (var port in requestedPorts)
-        {
             try
             {
                 // Attempt to bind; if the port is already in use the call will throw
@@ -71,24 +61,21 @@ if (requestedPorts.Count > 0)
                 // Log and continue. Don't crash immediately so we can try other ports.
                 Console.WriteLine($"[Fortitude] Warning: could not bind to port {port}: {ex.Message}");
             }
-        }
 
         if (bound.Count == 0)
-        {
-            throw new InvalidOperationException($"Fortitude: Could not bind to any requested port(s): {string.Join(',', requestedPorts)}");
-        }
+            throw new InvalidOperationException(
+                $"Fortitude: Could not bind to any requested port(s): {string.Join(',', requestedPorts)}");
 
         // Store the list of successful ports in configuration for later logging/usage
         builder.Configuration["Fortitude:SelectedPorts"] = string.Join(',', bound);
         Console.WriteLine($"[Fortitude] Bound to ports: {string.Join(',', bound)}");
     });
-}
 
 builder.Services.AddSingleton<PendingRequestStore>();
 builder.Services.AddSingleton<PortReservationService>();
 
 StaticWebAssetsLoader.UseStaticWebAssets(
-    builder.Environment, 
+    builder.Environment,
     builder.Configuration
 );
 
@@ -109,16 +96,15 @@ lifetime.ApplicationStarted.Register(() =>
     var server = app.Services.GetRequiredService<IServer>();
 
     portReservationService.Initialize(server);
-    
+
     // Use selected ports if present, otherwise fall back to app.Urls (ASPNETCORE_URLS)
     var selected = builder.Configuration["Fortitude:SelectedPorts"];
     if (!string.IsNullOrEmpty(selected))
     {
         var ports = selected.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var p in ports)
-        {
-            app.Logger.LogInformation("Fortitude Server Live UI is now running on: {Url}", $"http://localhost:{p}/fortitude");
-        }
+            app.Logger.LogInformation("Fortitude Server Live UI is now running on: {Url}",
+                $"http://localhost:{p}/fortitude");
     }
     else
     {
@@ -126,7 +112,8 @@ lifetime.ApplicationStarted.Register(() =>
         foreach (var rawUrl in app.Urls)
         {
             var displayUrl = rawUrl.Replace("0.0.0.0", "localhost");
-            app.Logger.LogInformation("Fortitude Server Live UI is now running on: {Url}", $"{displayUrl.TrimEnd('/')}/fortitude");
+            app.Logger.LogInformation("Fortitude Server Live UI is now running on: {Url}",
+                $"{displayUrl.TrimEnd('/')}/fortitude");
         }
     }
 });
@@ -139,7 +126,7 @@ app.MapGet("/fortitude/health", () => "server running");
 
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseExceptionHandler("/Error", true);
     app.UseHsts();
 }
 

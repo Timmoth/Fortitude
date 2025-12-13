@@ -2,32 +2,32 @@ using Fortitude.Client;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 
-namespace Fortitude.Server
+namespace Fortitude.Server;
+
+/// <summary>
+///     Middleware that forwards HTTP requests to the Fortitude client associated with the port
+///     that the HTTP request arrived on. It then waits for a response and forwards it back.
+/// </summary>
+public class FortitudeMiddleware(
+    RequestDelegate next,
+    PendingRequestStore pending,
+    IHubContext<FortitudeHub> hub,
+    ILogger<FortitudeMiddleware> logger,
+    RequestTracker tracker,
+    ConnectedClientService connectedClientService,
+    IOptions<Settings> settings)
+
 {
-    /// <summary>
-    /// Middleware that forwards HTTP requests to the Fortitude client associated with the port
-    /// that the HTTP request arrived on. It then waits for a response and forwards it back.
-    /// </summary>
-    public class FortitudeMiddleware(
-        RequestDelegate next,
-        PendingRequestStore pending,
-        IHubContext<FortitudeHub> hub,
-        ILogger<FortitudeMiddleware> logger,
-        RequestTracker tracker,
-        ConnectedClientService connectedClientService,
-        IOptions<Settings> settings)
-
-    {
-    private readonly RequestDelegate _next = next ?? throw new ArgumentNullException(nameof(next));
-    private readonly PendingRequestStore _pending = pending ?? throw new ArgumentNullException(nameof(pending));
-    private readonly IHubContext<FortitudeHub> _hub = hub ?? throw new ArgumentNullException(nameof(hub));
-    private readonly ILogger<FortitudeMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    private readonly RequestTracker _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
-
     private readonly ConnectedClientService _connectedClientService =
         connectedClientService ?? throw new ArgumentNullException(nameof(connectedClientService));
 
+    private readonly IHubContext<FortitudeHub> _hub = hub ?? throw new ArgumentNullException(nameof(hub));
+    private readonly ILogger<FortitudeMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly RequestDelegate _next = next ?? throw new ArgumentNullException(nameof(next));
+    private readonly PendingRequestStore _pending = pending ?? throw new ArgumentNullException(nameof(pending));
+
     private readonly Settings _settings = settings.Value ?? throw new ArgumentNullException(nameof(settings));
+    private readonly RequestTracker _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
 
     public async Task InvokeAsync(HttpContext ctx)
     {
@@ -49,14 +49,13 @@ namespace Fortitude.Server
             ctx.Request.Path,
             requestPort);
 
-        
+
         // Create FortitudeRequest
         var requestId = Guid.NewGuid();
         FortitudeRequest req;
-        
+
         if (_settings.Broadcast)
         {
-          
             _logger.LogInformation(
                 "Broadcast request on port {Port}",
                 requestPort);
@@ -73,7 +72,7 @@ namespace Fortitude.Server
                 await ctx.Response.WriteAsync("Failed to create request.").ConfigureAwait(false);
                 return;
             }
-            
+
             // Send only to the target client
             try
             {
@@ -114,7 +113,7 @@ namespace Fortitude.Server
                 "Routing request on port {Port} to client {ClientId}",
                 requestPort,
                 targetClientId);
-            
+
             try
             {
                 req = await FortitudeRequest.FromHttpContext(ctx, requestId).ConfigureAwait(false);
@@ -127,7 +126,7 @@ namespace Fortitude.Server
                 await ctx.Response.WriteAsync("Failed to create request.").ConfigureAwait(false);
                 return;
             }
-            
+
             // Send only to the target client
             try
             {
@@ -146,7 +145,7 @@ namespace Fortitude.Server
                 return;
             }
         }
-        
+
         // Await response
         FortitudeResponse response;
         try
@@ -173,17 +172,15 @@ namespace Fortitude.Server
     }
 
     /// <summary>
-    /// Writes a FortitudeResponse to HTTP output.
+    ///     Writes a FortitudeResponse to HTTP output.
     /// </summary>
     private static async Task WriteResponse(HttpContext ctx, FortitudeResponse response)
     {
         ctx.Response.StatusCode = response.Status;
 
         foreach (var header in response.Headers)
-        {
             if (!ctx.Response.Headers.ContainsKey(header.Key))
                 ctx.Response.Headers[header.Key] = header.Value;
-        }
 
         if (response.Body is { Length: > 0 })
         {
@@ -191,6 +188,5 @@ namespace Fortitude.Server
             await ctx.Response.Body.WriteAsync(response.Body, 0, response.Body.Length)
                 .ConfigureAwait(false);
         }
-    }
     }
 }

@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
 
 namespace Fortitude.Server;
 
@@ -10,9 +9,6 @@ namespace Fortitude.Server;
 /// </summary>
 public class ConnectedClientService
 {
-    private readonly ILogger<ConnectedClientService> _logger;
-    private readonly PortReservationService _portService;
-
     /// <summary>
     ///     Thread-safe dictionary of connected clients.
     ///     Key = Connection ID
@@ -20,13 +16,11 @@ public class ConnectedClientService
     /// </summary>
     private readonly ConcurrentDictionary<string, int> _clientPorts = new();
 
-    /// <summary>
-    ///     Invoked whenever the client list changes (connect/disconnect).
-    /// </summary>
-    public event Action? OnChanged;
+    private readonly ILogger<ConnectedClientService> _logger;
+    private readonly PortReservationService _portService;
 
     /// <summary>
-    ///     Initializes a new instance of <see cref="ConnectedClientService"/>.
+    ///     Initializes a new instance of <see cref="ConnectedClientService" />.
     /// </summary>
     /// <param name="logger">Logger instance.</param>
     /// <param name="portService">Port reservation service.</param>
@@ -50,6 +44,11 @@ public class ConnectedClientService
         new Dictionary<string, int>(_clientPorts);
 
     /// <summary>
+    ///     Invoked whenever the client list changes (connect/disconnect).
+    /// </summary>
+    public event Action? OnChanged;
+
+    /// <summary>
     ///     Adds a connected client and reserves a port for them.
     /// </summary>
     /// <param name="connectionId">The unique connection identifier.</param>
@@ -61,7 +60,7 @@ public class ConnectedClientService
         if (string.IsNullOrWhiteSpace(connectionId))
             throw new ArgumentException("Connection ID cannot be null or empty.", nameof(connectionId));
 
-        int port = _portService.ReservePort();
+        var port = _portService.ReservePort();
 
         _clientPorts[connectionId] = port;
 
@@ -81,7 +80,7 @@ public class ConnectedClientService
         if (string.IsNullOrWhiteSpace(connectionId))
             return;
 
-        if (_clientPorts.TryRemove(connectionId, out int port))
+        if (_clientPorts.TryRemove(connectionId, out var port))
         {
             _portService.ReleasePort(port);
 
@@ -113,9 +112,9 @@ public class ConnectedClientService
 
         return null;
     }
-    
+
     /// <summary>
-    /// Returns connectionId for the client assigned to a given reserved port.
+    ///     Returns connectionId for the client assigned to a given reserved port.
     /// </summary>
     public string? GetClientByPort(int port)
     {

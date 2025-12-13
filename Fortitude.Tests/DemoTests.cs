@@ -10,10 +10,6 @@ public class FortitudeClientTests(ITestOutputHelper output)
 {
     private static readonly string FortitudeBaseUrl = "http://localhost:5185";
 
-    public class FakeUser
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
-    }
     [Fact]
     public async Task Test1()
     {
@@ -24,11 +20,8 @@ public class FortitudeClientTests(ITestOutputHelper output)
         var handler = fortitude.Accepts()
             .Get()
             .HttpRoute($"/users/{fakeUser.Id}")
-            .Returns((req, res) =>
-            {
-                res.Ok(fakeUser);
-            });
-        
+            .Returns((req, res) => { res.Ok(fakeUser); });
+
         using var http = new HttpClient();
         var response = await http.GetAsync($"{fortitudeUrl}users/{fakeUser.Id}");
 
@@ -37,30 +30,15 @@ public class FortitudeClientTests(ITestOutputHelper output)
 
         // Then
         await fortitude.StopAsync();
-        var returnedUser = System.Text.Json.JsonSerializer.Deserialize<FakeUser>(body, JsonSerializerOptions.Web);
+        var returnedUser = JsonSerializer.Deserialize<FakeUser>(body, JsonSerializerOptions.Web);
         Assert.Equal(fakeUser.Id, returnedUser?.Id);
-
-    }
-
-      public class CreateUserRequest
-    {
-        public string Name { get; set; } = string.Empty;
-        public int Age { get; set; }
-    }
-
-    public class CreateUserResponse
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
-        public string Name { get; set; } = string.Empty;
-        public int Age { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
     [Fact]
     public async Task CanCreateUserWithHeadersAndQueryParams()
     {
         // Given
-        
+
         // Start Fortitude client
         var (fortitude, fortitudeUrl) = await FortitudeServer.ConnectAsync(FortitudeBaseUrl, output);
 
@@ -84,7 +62,7 @@ public class FortitudeClientTests(ITestOutputHelper output)
                     Age = reqObj.Age
                 });
             });
-        
+
         // When
         // SUT would make this HTTP request internally,
         // For the sake of the demo we'll make it here
@@ -112,5 +90,24 @@ public class FortitudeClientTests(ITestOutputHelper output)
 
         // Stop Fortitude
         await fortitude.StopAsync();
+    }
+
+    public class FakeUser
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+    }
+
+    public class CreateUserRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Age { get; set; }
+    }
+
+    public class CreateUserResponse
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public string Name { get; set; } = string.Empty;
+        public int Age { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

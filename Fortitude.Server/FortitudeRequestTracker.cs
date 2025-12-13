@@ -8,16 +8,16 @@ public class RequestTracker
     // Limit how many requests we keep in memory
     private const int MaxRequests = 1000;
 
-    // Queue of requests
-    public ConcurrentQueue<FortitudeRequest> Requests { get; } = new();
-
     // Map requestId -> response
     private readonly ConcurrentDictionary<Guid, FortitudeResponse> _responses = new();
 
-    public event Action? OnUpdate;
+    // Queue of requests
+    public ConcurrentQueue<FortitudeRequest> Requests { get; } = new();
 
     // Total requests seen
     public int TotalRequests => Requests.Count;
+
+    public event Action? OnUpdate;
 
     // Add a request
     public void Add(FortitudeRequest req)

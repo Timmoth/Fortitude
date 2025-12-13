@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Routing.Template;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Template;
 
 namespace Fortitude.Client;
 
@@ -13,8 +12,6 @@ public class FortitudeHandler
 {
     private readonly Func<FortitudeRequest, FortitudeResponse, Task> _asyncResponder;
     private readonly Func<byte[]?, bool>? _bodyPredicate;
-    private Func<FortitudeRequest, bool>? _requestPredicate;
-    private readonly RouteTemplate? _routeTemplate;
 
     private readonly Dictionary<string, string> _headers;
     private readonly HashSet<string> _methods;
@@ -22,12 +19,12 @@ public class FortitudeHandler
 
     private readonly ConcurrentQueue<FortitudeRequest> _receivedRequests = new();
     private readonly string? _route;
+    private readonly RouteTemplate? _routeTemplate;
 
     private readonly List<TaskCompletionSource<FortitudeRequest?>> _waiters = new();
     private readonly object _waitersLock = new();
+    private readonly Func<FortitudeRequest, bool>? _requestPredicate;
 
-    public bool Enabled { get; set; } = true;
-    
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandler" /> with an asynchronous responder.
     /// </summary>
@@ -59,7 +56,7 @@ public class FortitudeHandler
         Func<byte[]?, bool>? bodyPredicate,
         Func<FortitudeRequest, bool>? requestPredicate,
         Action<FortitudeRequest, FortitudeResponse> responder)
-        : this(methods, route, headers, queryParams, bodyPredicate,requestPredicate,
+        : this(methods, route, headers, queryParams, bodyPredicate, requestPredicate,
             (req, res) =>
             {
                 responder?.Invoke(req, res);
@@ -67,6 +64,8 @@ public class FortitudeHandler
             })
     {
     }
+
+    public bool Enabled { get; set; } = true;
 
     /// <summary>
     ///     Thread-safe list of received requests.
@@ -80,16 +79,13 @@ public class FortitudeHandler
     {
         if (!Enabled) return false;
         if (_methods.Any() && !_methods.Contains(req.Method)) return false;
-        
+
         if (_routeTemplate != null)
         {
             // Define the template
             var matcher = new TemplateMatcher(_routeTemplate, new RouteValueDictionary());
             var dict = new RouteValueDictionary();
-            if (!matcher.TryMatch(req.Route, dict))
-            {
-                return false;
-            }
+            if (!matcher.TryMatch(req.Route, dict)) return false;
         }
 
         foreach (var header in _headers)
@@ -102,7 +98,7 @@ public class FortitudeHandler
 
         if (_bodyPredicate != null && !_bodyPredicate(req.Body)) return false;
         if (_requestPredicate != null && !_requestPredicate(req)) return false;
-        
+
         return true;
     }
 
@@ -182,7 +178,7 @@ public class FortitudeHandler
                 }
         }
     }
-    
+
     public override string ToString()
     {
         var parts = new List<string>();
@@ -218,7 +214,7 @@ public class FortitudeHandler
 
         return string.Join(" ", parts);
     }
-    
+
     /// <summary>
     ///     Starts building a handler.
     /// </summary>
@@ -227,5 +223,4 @@ public class FortitudeHandler
     {
         return new FortitudeHandlerBuilder(null);
     }
-
 }

@@ -13,6 +13,8 @@ public class HandlerMatchesTests(ITestOutputHelper output)
         FortitudeHandler handler)
     {
         // Arrange
+        output.WriteLine(req.ToString());
+        output.WriteLine(handler.ToString());
 
         // Act
         var result = handler.Matches(req);
@@ -27,6 +29,8 @@ public class HandlerMatchesTests(ITestOutputHelper output)
         FortitudeHandler handler)
     {
         // Arrange
+        output.WriteLine(req.ToString());
+        output.WriteLine(handler.ToString());
 
         // Act
         var result = handler.Matches(req);
@@ -270,6 +274,204 @@ public class HandlerMatchesTests(ITestOutputHelper output)
                 .QueryParam("a", "1")
                 .Returns((req, res) => { })
         ];
+
+        // -------------------------------------------------------
+// ROUTE STARTS / ENDS WITH
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with { Route = "/api/users/1", Url = "http://localhost/api/users/1" },
+            FortitudeHandler.Accepts()
+                .RouteStartsWith("/api")
+                .Returns((req, res) => { })
+        ];
+
+        yield return
+        [
+            defaultReq() with { Route = "/files/report.pdf", Url = "http://localhost/files/report.pdf" },
+            FortitudeHandler.Accepts()
+                .RouteEndsWith(".pdf")
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// HEADER EXISTS
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with
+            {
+                Headers = new Dictionary<string, string[]>
+                {
+                    ["X-Trace-Id"] = new[] { "abc" }
+                }
+            },
+            FortitudeHandler.Accepts()
+                .HeaderExists("X-Trace-Id")
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// AUTH / BEARER / COMMON HEADERS
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with
+            {
+                Headers = new Dictionary<string, string[]>
+                {
+                    ["Authorization"] = new[] { "Bearer token123" }
+                }
+            },
+            FortitudeHandler.Accepts()
+                .BearerToken("token123")
+                .Returns((req, res) => { })
+        ];
+
+        yield return
+        [
+            defaultReq() with
+            {
+                Headers = new Dictionary<string, string[]>
+                {
+                    ["Accept"] = new[] { "application/json" }
+                }
+            },
+            FortitudeHandler.Accepts()
+                .Accept("application/json")
+                .Returns((req, res) => { })
+        ];
+
+        yield return
+        [
+            defaultReq() with
+            {
+                Headers = new Dictionary<string, string[]>
+                {
+                    ["Content-Type"] = new[] { "application/json" }
+                }
+            },
+            FortitudeHandler.Accepts()
+                .ContentType("application/json")
+                .Returns((req, res) => { })
+        ];
+
+        yield return
+        [
+            defaultReq() with
+            {
+                Headers = new Dictionary<string, string[]>
+                {
+                    ["User-Agent"] = new[] { "Fortitude-Test" }
+                }
+            },
+            FortitudeHandler.Accepts()
+                .UserAgent("Fortitude-Test")
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// QUERY PARAM EXISTS / MULTIPLE PARAMS
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with
+            {
+                RawQuery = "?debug=true",
+                Url = "http://localhost/test?debug=true",
+                Query = new Dictionary<string, string[]>
+                {
+                    ["debug"] = new[] { "true" }
+                }
+            },
+            FortitudeHandler.Accepts()
+                .QueryParamExists("debug")
+                .Returns((req, res) => { })
+        ];
+
+        yield return
+        [
+            defaultReq() with
+            {
+                RawQuery = "?a=1&b=2",
+                Url = "http://localhost/test?a=1&b=2",
+                Query = new Dictionary<string, string[]>
+                {
+                    ["a"] = new[] { "1" },
+                    ["b"] = new[] { "2" }
+                }
+            },
+            FortitudeHandler.Accepts()
+                .QueryParams(new Dictionary<string, string>
+                {
+                    ["a"] = "1",
+                    ["b"] = "2"
+                })
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// BODY HELPERS
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with { Body = Array.Empty<byte>() },
+            FortitudeHandler.Accepts()
+                .BodyIsEmpty()
+                .Returns((req, res) => { })
+        ];
+
+        yield return
+        [
+            defaultReq() with { Body = Encoding.UTF8.GetBytes("hello world") },
+            FortitudeHandler.Accepts()
+                .BodyContains("world")
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// JSON BODY HELPERS
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with
+            {
+                Headers = new Dictionary<string, string[]> { ["Content-Type"] = new[] { "application/json" } },
+                Body = Encoding.UTF8.GetBytes("{\"id\":10}")
+            },
+            FortitudeHandler.Accepts()
+                .JsonBody()
+                .Returns((req, res) => { })
+        ];
+
+        yield return
+        [
+            defaultReq() with
+            {
+                Body = Encoding.UTF8.GetBytes("{\"id\":42}")
+            },
+            FortitudeHandler.Accepts()
+                .JsonBody<TestDto>(x => x.Id == 42)
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// ANY METHOD
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with { Method = "OPTIONS" },
+            FortitudeHandler.Accepts()
+                .AnyMethod()
+                .Returns((req, res) => { })
+        ];
     }
 
     public static IEnumerable<object[]> GetNonMatchingRequests()
@@ -497,5 +699,117 @@ public class HandlerMatchesTests(ITestOutputHelper output)
                 .Header("X-Missing", "true") // required header missing → no match
                 .Returns((req, res) => { })
         ];
+
+        // -------------------------------------------------------
+// ROUTE STARTS / ENDS WITH - NON MATCH
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with { Route = "/v1/users", Url = "http://localhost/v1/users" },
+            FortitudeHandler.Accepts()
+                .RouteStartsWith("/api")
+                .Returns((req, res) => { })
+        ];
+
+        yield return
+        [
+            defaultReq() with { Route = "/files/report.txt", Url = "http://localhost/files/report.txt" },
+            FortitudeHandler.Accepts()
+                .RouteEndsWith(".pdf")
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// HEADER EXISTS - NON MATCH
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq(),
+            FortitudeHandler.Accepts()
+                .HeaderExists("X-Missing")
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// AUTH / BEARER - NON MATCH
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with
+            {
+                Headers = new Dictionary<string, string[]>
+                {
+                    ["Authorization"] = new[] { "Bearer wrong" }
+                }
+            },
+            FortitudeHandler.Accepts()
+                .BearerToken("correct")
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// QUERY PARAM EXISTS - NON MATCH
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq(),
+            FortitudeHandler.Accepts()
+                .QueryParamExists("missing")
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// BODY HELPERS - NON MATCH
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with { Body = Encoding.UTF8.GetBytes("something") },
+            FortitudeHandler.Accepts()
+                .BodyIsEmpty()
+                .Returns((req, res) => { })
+        ];
+
+        yield return
+        [
+            defaultReq() with { Body = Encoding.UTF8.GetBytes("abc") },
+            FortitudeHandler.Accepts()
+                .BodyContains("xyz")
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// JSON BODY - NON MATCH
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with
+            {
+                Body = Encoding.UTF8.GetBytes("{\"id\":1}")
+            },
+            FortitudeHandler.Accepts()
+                .JsonBody<TestDto>(x => x.Id == 99)
+                .Returns((req, res) => { })
+        ];
+
+// -------------------------------------------------------
+// ANY METHOD + OTHER CONSTRAINT FAILS
+// -------------------------------------------------------
+
+        yield return
+        [
+            defaultReq() with { Method = "GET", Route = "/x" },
+            FortitudeHandler.Accepts()
+                .AnyMethod()
+                .HttpRoute("/y") // route mismatch
+                .Returns((req, res) => { })
+        ];
     }
+
+    private record TestDto(int Id);
 }
