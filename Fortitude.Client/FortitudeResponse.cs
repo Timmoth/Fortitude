@@ -413,13 +413,5 @@ public sealed record FortitudeResponse
         return seconds == null ? this : WithHeader("Retry-After", seconds.Value.ToString());
     }
 
-    /// <summary>
-    ///     Ensures the request ID is included as a response header.
-    /// </summary>
-    public FortitudeResponse EnsureRequestIdHeader()
-    {
-        return WithHeader("X-Request-Id", RequestId.ToString());
-    }
-
     #endregion
 }

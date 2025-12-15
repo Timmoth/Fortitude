@@ -26,6 +26,8 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 *   [mocking-apis](./docs/mocking.md)
 *   [local-development](./docs/local-development.md)
 *   [aspire-integration-tests](./docs/aspire-integration-tests.md)
+*   [handler-builder-usage](./docs/handler-builder-usage.md)
+*   [response-builder-usage](./docs/response-builder-usage.md)
 
 ### Running the Fortitude Server via Docker
 

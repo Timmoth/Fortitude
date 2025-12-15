@@ -551,30 +551,7 @@ public class ClientServerTests(ITestOutputHelper testOutputHelper)
 
         await hubConnection.DisposeAsync();
     }
-    [Fact]
-    public async Task FortitudeServer_EnsureRequestIdHeader_AddsHeader()
-    {
-        await using var factory = new WebApplicationFactory<Program>();
 
-        // Arrange
-        var (client, fortitudeClient, hubConnection) = await Setup(factory);
-        fortitudeClient.Accepts()
-            .Get()
-            .HttpRoute("/request-id")
-            .Returns((req, res) =>
-            {
-                res.Ok("ok").EnsureRequestIdHeader();
-            });
-
-        var response = await client.GetAsync("/request-id");
-
-        Assert.True(response.Headers.Contains("X-Request-Id"));
-        Assert.True(Guid.TryParse(
-            response.Headers.GetValues("X-Request-Id").Single(),
-            out _));
-
-        await hubConnection.DisposeAsync();
-    }
     [Fact]
     public async Task FortitudeServer_ClearHeaders_RemovesAllHeaders()
     {
