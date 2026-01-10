@@ -1,4 +1,5 @@
 using System.Net;
+using Fortitude.Client;
 using Fortitude.Server.Components;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.StaticWebAssets;
@@ -48,6 +49,16 @@ public class Program
             requestedPorts = [single];
         else
             requestedPorts = [];
+        
+        var configDir = Path.Combine(AppContext.BaseDirectory, "config"); 
+     
+        var handlers = new List<FortitudeHandler>();
+        foreach (var handler in FortitudeYamlLoader.LoadHandlers(configDir))
+        {
+            handlers.AddRange(handler);
+        }
+        
+        builder.Services.AddSingleton<HandlerSet>(h => new HandlerSet(h.GetRequiredService<ILogger<HandlerSet>>(), handlers));
 
 // If ports were requested, configure Kestrel to listen on each of them
         if (requestedPorts.Count > 0)

@@ -12,7 +12,7 @@ namespace Fortitude.Client;
 /// </summary>
 public sealed record FortitudeResponse
 {
-    private static readonly JsonSerializerOptions DefaultJsonOptions = JsonSerializerOptions.Web;
+    internal static readonly JsonSerializerOptions DefaultJsonOptions = JsonSerializerOptions.Web;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="FortitudeResponse" /> class.

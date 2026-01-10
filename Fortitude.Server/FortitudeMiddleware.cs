@@ -15,7 +15,8 @@ public class FortitudeMiddleware(
     ILogger<FortitudeMiddleware> logger,
     RequestTracker tracker,
     ConnectedClientService connectedClientService,
-    IOptions<Settings> settings)
+    IOptions<Settings> settings,
+    HandlerSet handlers)
 
 {
     private readonly ConnectedClientService _connectedClientService =
@@ -53,25 +54,35 @@ public class FortitudeMiddleware(
         // Create FortitudeRequest
         var requestId = Guid.NewGuid();
         FortitudeRequest req;
+        
+        try
+        {
+            req = await FortitudeRequest.FromHttpContext(ctx, requestId).ConfigureAwait(false);
+            _tracker.Add(req);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse request {Path}", ctx.Request.Path);
+            ctx.Response.StatusCode = 500;
+            await ctx.Response.WriteAsync("Failed to create request.").ConfigureAwait(false);
+            return;
+        }
 
+        var response = await handlers.HandleIncomingAsync(req);
+        if (response != null)
+        {
+            _tracker.Add(response);
+            await WriteResponse(ctx, response).ConfigureAwait(false);
+
+            _logger.LogInformation("Response sent for request {RequestId}", requestId);
+            return;
+        }
+        
         if (_settings.Broadcast)
         {
             _logger.LogInformation(
                 "Broadcast request on port {Port}",
                 requestPort);
-
-            try
-            {
-                req = await FortitudeRequest.FromHttpContext(ctx, requestId).ConfigureAwait(false);
-                _tracker.Add(req);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to parse request {Path}", ctx.Request.Path);
-                ctx.Response.StatusCode = 500;
-                await ctx.Response.WriteAsync("Failed to create request.").ConfigureAwait(false);
-                return;
-            }
 
             // Send only to the target client
             try
@@ -114,19 +125,6 @@ public class FortitudeMiddleware(
                 requestPort,
                 targetClientId);
 
-            try
-            {
-                req = await FortitudeRequest.FromHttpContext(ctx, requestId).ConfigureAwait(false);
-                _tracker.Add(req);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to parse request {Path}", ctx.Request.Path);
-                ctx.Response.StatusCode = 500;
-                await ctx.Response.WriteAsync("Failed to create request.").ConfigureAwait(false);
-                return;
-            }
-
             // Send only to the target client
             try
             {
@@ -147,7 +145,6 @@ public class FortitudeMiddleware(
         }
 
         // Await response
-        FortitudeResponse response;
         try
         {
             response = await _pending.WaitForResponse(

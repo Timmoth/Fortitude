@@ -8,7 +8,7 @@
 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageId>Fortitude</PackageId>
-        <PackageVersion>10.0.9</PackageVersion>
+        <PackageVersion>10.1.0</PackageVersion>
         <Authors>Tim Jones</Authors>
         <Company>Aptacode</Company>
         <Description>A lightweight, fluent, middleware-powered fake server for advanced HTTP testing</Description>
@@ -22,6 +22,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Jint" Version="4.5.0" />
         <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.0"/>
         <PackageReference Include="Microsoft.AspNetCore.Routing" Version="2.3.0"/>
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0"/>
@@ -30,6 +31,7 @@
         <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0"/>
         <PackageReference Include="xunit.abstractions" Version="2.0.3"/>
+        <PackageReference Include="YamlDotNet" Version="16.3.0" />
     </ItemGroup>
 
 </Project>

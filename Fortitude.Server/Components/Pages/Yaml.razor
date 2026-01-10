@@ -1,0 +1,167 @@
+﻿@inject HandlerSet HandlerSet
+@using System.Text
+@using System.IO
+@using Fortitude.Client
+
+<div class="max-w-6xl mx-auto p-4 space-y-6">
+
+    <!-- Page header -->
+    <div class="bg-white shadow rounded-lg p-6 flex justify-between items-center">
+        <h2 class="text-xl font-semibold">YAML Handlers</h2>
+        <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow"
+                @onclick="AddNewYaml">Add New Handler
+        </button>
+    </div>
+
+    <!-- YAML Files Table -->
+    <div class="bg-white shadow rounded-lg overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Handlers</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @foreach (var file in _handlerFiles)
+                {
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-2 text-sm text-gray-700">@file.FileName</td>
+                        <td class="px-4 py-2 text-sm text-gray-700">@file.HandlersCount</td>
+                        <td class="px-4 py-2 text-sm text-gray-700 space-x-2">
+                            <button class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
+                                    @onclick="() => EditYaml(file)">Edit</button>
+                            <button class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded"
+                                    @onclick="() => DeleteYaml(file)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- YAML Editor Modal -->
+    @if (_editingFile != null)
+    {
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-lg w-3/4 max-w-4xl p-6 space-y-4">
+                <h3 class="text-lg font-semibold">@((_editingFile.IsNew ? "New Handler" : "Edit Handler") + ": " + _editingFile.FileName)</h3>
+                
+                <textarea class="w-full h-96 p-2 border rounded text-sm font-mono" @bind="_editingFile.Content"></textarea>
+
+                <div class="flex justify-end space-x-2">
+                    <button class="bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded"
+                            @onclick="CancelEdit">Cancel</button>
+                    <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+                            @onclick="SaveYaml">Save</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<YamlFileInfo> _handlerFiles = new();
+    private YamlFileInfo? _editingFile;
+
+    protected override void OnInitialized()
+    {
+        LoadHandlerFiles();
+    }
+
+    private void LoadHandlerFiles()
+    {
+        var dir = Path.Combine(AppContext.BaseDirectory, "config");
+        if (!Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        _handlerFiles = Directory.GetFiles(dir, "*.yaml")
+            .Select(f => new YamlFileInfo
+            {
+                FileName = Path.GetFileName(f),
+                FullPath = f,
+                Content = File.ReadAllText(f),
+                HandlersCount = CountHandlersInYaml(f)
+            }).ToList();
+    }
+
+    private int CountHandlersInYaml(string filePath)
+    {
+        try
+        {
+            var yamlText = File.ReadAllText(filePath);
+            var parsed = FortitudeYamlLoader.FromYamlMulti(yamlText);
+            return parsed.ToList().Count;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private void EditYaml(YamlFileInfo file)
+    {
+        _editingFile = new YamlFileInfo
+        {
+            FileName = file.FileName,
+            FullPath = file.FullPath,
+            Content = file.Content,
+            HandlersCount = file.HandlersCount
+        };
+    }
+
+    private void AddNewYaml()
+    {
+        _editingFile = new YamlFileInfo
+        {
+            FileName = $"new-{DateTime.Now:yyyyMMddHHmmss}.yaml",
+            Content = "# Write your handler YAML here\nhandlers:\n",
+            IsNew = true
+        };
+    }
+
+    private void CancelEdit()
+    {
+        _editingFile = null;
+    }
+
+    private void SaveYaml()
+    {
+        if (_editingFile == null) return;
+
+        var dir = Path.Combine(AppContext.BaseDirectory, "config");
+        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+        var filePath = Path.Combine(dir, _editingFile.FileName);
+
+        File.WriteAllText(filePath, _editingFile.Content, Encoding.UTF8);
+
+        // Reload the HandlerSet singleton so server uses updated YAML
+        HandlerSet.ReloadYamlFiles();
+
+        LoadHandlerFiles();
+        _editingFile = null;
+    }
+
+    private void DeleteYaml(YamlFileInfo file)
+    {
+        if (File.Exists(file.FullPath))
+        {
+            File.Delete(file.FullPath);
+            HandlerSet.ReloadYamlFiles();
+            LoadHandlerFiles();
+        }
+    }
+
+    private class YamlFileInfo
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string FullPath { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public int HandlersCount { get; set; }
+        public bool IsNew { get; set; }
+    }
+}
