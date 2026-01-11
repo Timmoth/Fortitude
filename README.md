@@ -28,6 +28,7 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 *   [aspire-integration-tests](./docs/aspire-integration-tests.md)
 *   [handler-builder-usage](./docs/handler-builder-usage.md)
 *   [response-builder-usage](./docs/response-builder-usage.md)
+*   [yaml-handlers](./docs/yaml-handlers.md)
 
 ### Running the Fortitude Server via Docker
 
@@ -41,7 +42,8 @@ docker run -e PORT=5005 -p 5005:5005 aptacode/fortitude-server:latest
 # Run with a port range (recommended for parallel test execution)
 docker run -e PORTS=5000-5005 -p 5000-5005:5000-5005 aptacode/fortitude-server:latest
 
-
+# [optional] pass through YAML defined handlers
+docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config aptacode/fortitude-server:latest
 ```
 
 ### Example
@@ -192,6 +194,26 @@ There are **two ways** to write tests with Fortitude:
         Assert.Equal(999, created!.Id); // ID assigned by external service
     }
 ```
+
+### 3. YAML Defined handlers
+
+YAML-defined handlers allow you to run a fully configurable mock API without writing any C# code. You can mount a directory of YAML files into the Fortitude Server and define how requests should be matched and what responses should be returned.
+```yaml
+handlers:
+  - match:
+      methods: [POST]
+      route: /users
+      body:
+        json: email == "alice@example.com"
+    response:
+      status: 201
+      body:
+        json:
+          id: 42
+          name: Alice
+          email: alice@example.com
+```
+In this example, any POST /users request whose JSON body contains an email of alice@example.com will receive a 201 Created response with a mock user object.
 
 ## Live Server
 
