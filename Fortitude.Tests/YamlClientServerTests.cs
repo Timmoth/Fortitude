@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Fortitude.Client;
@@ -229,6 +230,7 @@ response:
 
         await hubConnection.DisposeAsync();
     }
+    
     [Fact]
     public async Task FortitudeServer_Matches_WhenBodyContainsText()
     {
@@ -236,7 +238,7 @@ response:
 
         // Arrange
         var (client, fortitudeClient, hubConnection) = await Setup(factory);
-
+        
         fortitudeClient.AddHandler(FortitudeYamlLoader.FromYamlSingle(
             @"
 match:
@@ -407,4 +409,180 @@ response:
 
         await hubConnection.DisposeAsync();
     }
+    
+    [Fact]
+    public async Task FortitudeServer_RouteParameters_AreTemplated()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var (client, fortitudeClient, hubConnection) = await Setup(factory);
+
+        fortitudeClient.AddHandler(FortitudeYamlLoader.FromYamlSingle(
+            @"
+match:
+  route: /users/{id}
+  methods: [GET]
+response:
+  status: 200
+  body:
+    json:
+      userId: ""{{route.id}}""
+        "));
+
+        var response = await client.GetStringAsync("/users/42");
+
+        Assert.Equal("""{"userId":42}""", response);
+
+        await hubConnection.DisposeAsync();
+    }
+    
+    [Fact]
+    public async Task FortitudeServer_RequestBody_IsAvailableForTemplating()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var (client, fortitudeClient, hubConnection) = await Setup(factory);
+
+        fortitudeClient.AddHandler(FortitudeYamlLoader.FromYamlSingle(
+            @"
+match:
+  route: /echo
+  methods: [POST]
+response:
+  status: 200
+  body:
+    json:
+      name: ""{{body.name}}""
+      age: ""{{body.age}}""
+        "));
+
+        var response = await client.PostAsJsonAsync("/echo", new
+        {
+            name = "Alice",
+            age = 30
+        });
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains(@"""name"":""Alice""", json);
+        Assert.Contains(@"""age"":30", json);
+
+        await hubConnection.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task FortitudeServer_QueryParameters_AreTemplated()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var (client, fortitudeClient, hubConnection) = await Setup(factory);
+
+        fortitudeClient.AddHandler(FortitudeYamlLoader.FromYamlSingle(
+            @"
+match:
+  route: /search
+  methods: [GET]
+response:
+  status: 200
+  body:
+    json:
+      query: ""{{query.q}}""
+      page: ""{{query.page}}""
+        "));
+
+        var response = await client.GetStringAsync("/search?q=test&page=2");
+
+        Assert.Contains(@"""query"":""test""", response);
+        Assert.Contains(@"""page"":2", response);
+
+        await hubConnection.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task FortitudeServer_RequestHeaders_AreTemplated_UsingFirstValue()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var (client, fortitudeClient, hubConnection) = await Setup(factory);
+
+        fortitudeClient.AddHandler(FortitudeYamlLoader.FromYamlSingle(
+            @"
+match:
+  route: /headers
+  methods: [GET]
+response:
+  status: 200
+  headers:
+    X-Echo: ""{{headers.X-Test}}""
+        "));
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/headers");
+        request.Headers.Add("X-Test", new[] { "first", "second" });
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal("first", response.Headers.GetValues("X-Echo").Single());
+
+        await hubConnection.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task FortitudeServer_ResponseHeaders_AndBody_AreBothTemplated()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var (client, fortitudeClient, hubConnection) = await Setup(factory);
+
+        fortitudeClient.AddHandler(FortitudeYamlLoader.FromYamlSingle(
+            @"
+match:
+  route: /combined/{id}
+  methods: [GET]
+response:
+  status: 200
+  headers:
+    X-User-Id: ""{{route.id}}""
+  body:
+    text: ""User {{route.id}} requested {{query.action}}""
+        "));
+
+        var response = await client.GetAsync("/combined/99?action=view");
+
+        Assert.Equal("99", response.Headers.GetValues("X-User-Id").Single());
+
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.Equal("User 99 requested view", text);
+
+        await hubConnection.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task FortitudeServer_BodyMatching_AndTemplating_WorkTogether()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var (client, fortitudeClient, hubConnection) = await Setup(factory);
+
+        fortitudeClient.AddHandler(FortitudeYamlLoader.FromYamlSingle(
+            @"
+match:
+  route: /validate
+  methods: [POST]
+  body:
+    json: email == ""alice@example.com""
+response:
+  status: 200
+  body:
+    json:
+      result: ""ok""
+      email: ""{{body.email}}""
+        "));
+
+        var response = await client.PostAsJsonAsync("/validate", new
+        {
+            email = "alice@example.com"
+        });
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains(@"""result"":""ok""", json);
+        Assert.Contains(@"""email"":""alice@example.com""", json);
+
+        await hubConnection.DisposeAsync();
+    }
+
 }

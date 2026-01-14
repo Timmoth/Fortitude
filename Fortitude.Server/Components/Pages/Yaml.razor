@@ -4,15 +4,62 @@
 @using Fortitude.Client
 
 <div class="max-w-6xl mx-auto p-4 space-y-6">
-
+    
     <!-- Page header -->
     <div class="bg-white shadow rounded-lg p-6 flex justify-between items-center">
         <h2 class="text-xl font-semibold">YAML Handlers</h2>
-        <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow"
-                @onclick="AddNewYaml">Add New Handler
-        </button>
+        <div class="space-x-2">
+            <button class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded shadow"
+                    @onclick="OpenCurlDialog">
+                Add Handler From cURL
+            </button>
+
+            <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow"
+                    @onclick="AddNewYaml">
+                Add New Handler
+            </button>
+        </div>
     </div>
 
+    @if (_showCurlDialog)
+    {
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-lg w-3/4 max-w-3xl p-6 space-y-4">
+                <h3 class="text-lg font-semibold">Add Handler From cURL</h3>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        cURL command
+                    </label>
+                    <textarea class="w-full h-32 p-2 border rounded text-sm font-mono"
+                          @bind="_curlInput"
+                          placeholder="Paste curl command here"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        JSON response body
+                    </label>
+                    <textarea class="w-full h-32 p-2 border rounded text-sm font-mono"
+                          @bind="_jsonResponseInput"
+                          placeholder="Paste JSON response here"></textarea>
+                </div>
+
+                <div class="flex justify-end space-x-2">
+                    <button class="bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded"
+                            @onclick="CloseCurlDialog">
+                        Cancel
+                    </button>
+
+                    <button class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded"
+                            @onclick="GenerateYamlFromCurl">
+                        Generate
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+    
     <!-- YAML Files Table -->
     <div class="bg-white shadow rounded-lg overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
@@ -62,6 +109,24 @@
 </div>
 
 @code {
+    private bool _showCurlDialog;
+    private string _curlInput = string.Empty;
+    private string _jsonResponseInput = string.Empty;
+
+    
+    private void OpenCurlDialog()
+    {
+        _curlInput = string.Empty;
+        _jsonResponseInput = string.Empty;
+        _showCurlDialog = true;
+    }
+
+    private void CloseCurlDialog()
+    {
+        _showCurlDialog = false;
+    }
+
+    
     private List<YamlFileInfo> _handlerFiles = new();
     private YamlFileInfo? _editingFile;
 
@@ -164,4 +229,43 @@
         public int HandlersCount { get; set; }
         public bool IsNew { get; set; }
     }
+    
+    private void GenerateYamlFromCurl()
+    {
+        if (string.IsNullOrWhiteSpace(_curlInput) ||
+            string.IsNullOrWhiteSpace(_jsonResponseInput))
+            return;
+
+        var matchYaml = FortitudeYamlGenerator.CurlToMatchYaml(_curlInput);
+        var responseYaml = FortitudeYamlGenerator.JsonToResponseYaml(_jsonResponseInput);
+
+        var handlerYaml = new StringBuilder();
+        handlerYaml.AppendLine("handlers:");
+        handlerYaml.AppendLine("  -");
+        handlerYaml.Append(Indent(matchYaml, 4));
+        handlerYaml.Append(Indent(responseYaml, 4));
+
+        _editingFile = new YamlFileInfo
+        {
+            FileName = $"generated-{DateTime.Now:yyyyMMddHHmmss}.yaml",
+            Content = handlerYaml.ToString(),
+            IsNew = true
+        };
+
+        _showCurlDialog = false;
+    }
+
+    
+    private static string Indent(string text, int spaces)
+    {
+        var pad = new string(' ', spaces);
+        return string.Join(
+            Environment.NewLine,
+            text.Split(Environment.NewLine)
+                .Where(l => l.Length > 0)
+                .Select(l => pad + l)
+        ) + Environment.NewLine;
+    }
+
+
 }

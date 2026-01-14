@@ -33,7 +33,7 @@ handlers:
       status: 200
       body:
         json:
-          id: 1
+          id: {{route.id}}
           name: Alice
           age: 30
 ```
@@ -52,6 +52,10 @@ Match by HTTP method and route
 match:
   methods: [POST]
   route: /users
+```
+Routes may include parameters using {} syntax:
+```yaml
+route: /users/{id}
 ```
 Match headers
 ```yaml
@@ -119,6 +123,55 @@ handlers:
           name: Alice
 ```
 Because the second handler is more specific and appears later, it overrides the first for GET requests.
+
+## Response templating
+Fortitude supports templated values in responses using {{ }} syntax.
+
+```yaml
+handlers:
+  - match:
+      methods: [POST]
+      route: /users/{id}
+    response:
+      status: 200
+      body:
+        json:
+          userId: "{{route.id}}"
+          email: "{{body.email}}"
+```
+Request:
+```
+POST /users/42
+{
+  "email": "alice@example.com"
+}
+```
+Response:
+
+```
+{
+  "userId": "42",
+  "email": "alice@example.com"
+}
+```
+Templated text response
+```
+response:
+  status: 200
+  body:
+    text: "Hello {{body.name}}"
+```
+Templated response headers
+```
+response:
+  status: 200
+  headers:
+    x-request-id: "{{headers.x-request-id}}"
+  body:
+    text: OK
+```
+
+If a request header has multiple values, the first value is used for templating.
 
 ## Using YAML with Docker
 Mount or pass your YAML file into the Fortitude Server container:

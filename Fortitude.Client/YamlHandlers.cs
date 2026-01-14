@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Jint;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -8,6 +9,105 @@ namespace Fortitude.Client;
 
 public static class FortitudeYamlLoader
 {
+    private sealed class TemplateContext
+    {
+        public Dictionary<string, string> RouteValues { get; init; } = new();
+        public Dictionary<string, object?> Body { get; init; } = new();
+        public Dictionary<string, string> Headers { get; init; } = new();
+        public Dictionary<string, string> Query { get; init; } = new();
+    }
+
+    private static Dictionary<string, string> ExtractRouteValues(
+        string template,
+        string actualPath)
+    {
+        var templateParts = template.Trim('/').Split('/');
+        var pathParts = actualPath.Trim('/').Split('/');
+
+        if (templateParts.Length != pathParts.Length)
+            return new Dictionary<string, string>();
+
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < templateParts.Length; i++)
+        {
+            var part = templateParts[i];
+
+            if (!part.StartsWith("{") || !part.EndsWith("}")) continue;
+            var key = part[1..^1];
+            values[key] = pathParts[i];
+        }
+
+        return values;
+    }
+
+    
+    private static Dictionary<string, object?> ParseJsonBody(byte[]? body)
+    {
+        if (body == null || body.Length == 0)
+            return new();
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return ToDictionary(doc.RootElement);
+        }
+        catch
+        {
+            return new();
+        }
+    }
+    
+    private static string RenderTemplate(string template, TemplateContext ctx)
+    {
+        return Regex.Replace(template, @"\{\{\s*(.*?)\s*\}\}", match =>
+        {
+            var path = match.Groups[1].Value.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (path.Length == 0) return string.Empty;
+
+            object? current = path[0] switch
+            {
+                "body" => ctx.Body,
+                "headers" => ctx.Headers,
+                "query" => ctx.Query,
+                "route" => ctx.RouteValues,
+                _ => null
+            };
+
+            foreach (var segment in path.Skip(1))
+            {
+                current = current switch
+                {
+                    Dictionary<string, object?> d when d.TryGetValue(segment, out var v) => v,
+                    Dictionary<string, string> d when d.TryGetValue(segment, out var v) => v,
+                    _ => null
+                };
+
+                if (current == null)
+                    return string.Empty;
+            }
+
+            return current?.ToString() ?? string.Empty;
+        });
+    }
+    
+    private static object? RenderJsonTemplates(object? value, TemplateContext ctx)
+    {
+        return value switch
+        {
+            string s => RenderTemplate(s, ctx),
+
+            Dictionary<string, object> d => d.ToDictionary(
+                kvp => kvp.Key,
+                kvp => RenderJsonTemplates(kvp.Value, ctx)
+            ),
+
+            List<object> l => l.Select(v => RenderJsonTemplates(v, ctx)).ToList(),
+
+            _ => value
+        };
+    }
+    
     private static IEnumerable<string> LoadYamlFiles(string dir)
     {
         if (!Directory.Exists(dir)) yield break;
@@ -167,6 +267,7 @@ public static class FortitudeYamlLoader
         }
     }
 
+    
     // -------------------------------
     // Request-level predicate (headers + query)
     // -------------------------------
@@ -212,11 +313,26 @@ public static class FortitudeYamlLoader
     {
         res.Status = handler.Response.Status;
 
+        var templateContext = new TemplateContext
+        {
+            Body = ParseJsonBody(req.Body),
+            Headers = req.Headers.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value.FirstOrDefault() ?? string.Empty
+            ),
+            Query = req.Query.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value.FirstOrDefault() ?? string.Empty
+            ),
+            RouteValues = string.IsNullOrEmpty(handler.Match.Route) ? new Dictionary<string, string>() : ExtractRouteValues(handler.Match.Route, req.Route)
+        };
+
         // Text body
         var bodyText = handler.Response.Body?.Text;
         if (!string.IsNullOrWhiteSpace(bodyText))
         {
-            res.Body = Encoding.UTF8.GetBytes(bodyText);
+            var rendered = RenderTemplate(bodyText, templateContext);
+            res.Body = Encoding.UTF8.GetBytes(rendered);
             res.ContentType = "text/plain; charset=utf-8";
         }
 
@@ -224,17 +340,28 @@ public static class FortitudeYamlLoader
         var jsonBody = handler.Response.Body?.Json;
         if (jsonBody != null)
         {
-            res.Body = JsonSerializer.SerializeToUtf8Bytes(CoerceNumbers(jsonBody), FortitudeResponse.DefaultJsonOptions);
+            var renderedJson =
+                RenderJsonTemplates(jsonBody, templateContext);
+
+            res.Body = JsonSerializer.SerializeToUtf8Bytes(
+                CoerceNumbers((Dictionary<string, object>)renderedJson!),
+                FortitudeResponse.DefaultJsonOptions
+            );
+
             res.ContentType = "application/json";
         }
 
-        // Response headers
-        var respHeaders = handler.Response.Headers;
-        if (respHeaders != null)
+        // Response headers (templated too)
+        if (handler.Response.Headers != null)
         {
-            res.Headers = respHeaders;
+            res.Headers = handler.Response.Headers.ToDictionary(
+                kvp => kvp.Key,
+                kvp => RenderTemplate(kvp.Value, templateContext)
+            );
         }
     }
+    
+
 
     return new FortitudeHandler(
         methods,

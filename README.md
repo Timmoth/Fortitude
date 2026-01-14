@@ -202,16 +202,16 @@ YAML-defined handlers allow you to run a fully configurable mock API without wri
 handlers:
   - match:
       methods: [POST]
-      route: /users
+      route: /users/{id}
       body:
         json: email == "alice@example.com"
     response:
       status: 201
       body:
         json:
-          id: 42
-          name: Alice
-          email: alice@example.com
+          id: {{route.id}}
+          name: {{body.name}}
+          email: {{body.email}}
 ```
 In this example, any POST /users request whose JSON body contains an email of alice@example.com will receive a 201 Created response with a mock user object.
 
