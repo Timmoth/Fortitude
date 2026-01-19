@@ -344,8 +344,8 @@ public static class FortitudeYamlLoader
                 RenderJsonTemplates(jsonBody, templateContext);
 
             res.Body = JsonSerializer.SerializeToUtf8Bytes(
-                CoerceNumbers((Dictionary<string, object>)renderedJson!),
-                FortitudeResponse.DefaultJsonOptions
+                CoerceNumbers((Dictionary<string, object>)renderedJson!), 
+                JsonSerializerOptions.Web
             );
 
             res.ContentType = "application/json";

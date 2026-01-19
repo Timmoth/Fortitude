@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace Fortitude.Client;
 
@@ -12,8 +13,6 @@ namespace Fortitude.Client;
 /// </summary>
 public sealed record FortitudeResponse
 {
-    internal static readonly JsonSerializerOptions DefaultJsonOptions = JsonSerializerOptions.Web;
-
     /// <summary>
     ///     Initializes a new instance of the <see cref="FortitudeResponse" /> class.
     /// </summary>
@@ -98,6 +97,7 @@ public sealed record FortitudeResponse
     public HttpResponseMessage ToHttpResponseMessage()
     {
         var response = new HttpResponseMessage((HttpStatusCode)Status);
+        response.ReasonPhrase = ReasonPhrases.GetReasonPhrase(Status);
 
         if (Body is { Length: > 0 })
         {
@@ -290,10 +290,10 @@ public sealed record FortitudeResponse
     /// <summary>
     ///     Sets a JSON response for the specified status code.
     /// </summary>
-    public FortitudeResponse SetJson<T>(int status, T body, Dictionary<string, string>? headers = null)
+    public FortitudeResponse SetJson<T>(int status, T body, Dictionary<string, string>? headers = null, JsonSerializerOptions? serializerOptions = null)
     {
         Status = status;
-        Body = JsonSerializer.SerializeToUtf8Bytes(body, DefaultJsonOptions);
+        Body = JsonSerializer.SerializeToUtf8Bytes(body, serializerOptions ?? JsonSerializerOptions.Web);
         ContentType = "application/json";
         return WithHeaders(headers);
     }

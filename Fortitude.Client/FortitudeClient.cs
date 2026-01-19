@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
@@ -49,6 +50,12 @@ public class FortitudeClient : IAsyncDisposable
         if (handler == null)
             throw new ArgumentNullException(nameof(handler));
 
+        if (_handlers.Contains(handler))
+        {
+            _logger.LogInformation("[Duplicate Handler]: {HandlerName} ", handler.ToString());
+            return;
+        }
+        
         _handlers.Add(handler);
         _logger.LogInformation("Registered Handler: {HandlerName}", handler.ToString());
     }
@@ -289,5 +296,15 @@ public class FortitudeClient : IAsyncDisposable
             throw new ArgumentNullException(nameof(logger));
 
         return new FortitudeClient(new TestOutputLogger<FortitudeClient>(logger));
+    }
+
+    /// <summary>
+    ///     Creates a new instance of <see cref="FortitudeClient" /> for testing purposes
+    /// </summary>
+    /// <returns>A new <see cref="FortitudeClient" /> instance.</returns>
+    public static FortitudeClient Create()
+    {
+        var logger = LoggerFactory.Create(builder => builder.AddSimpleConsole()).CreateLogger<FortitudeClient>();
+        return new FortitudeClient(logger);
     }
 }

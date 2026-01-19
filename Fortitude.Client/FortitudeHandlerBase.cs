@@ -148,7 +148,7 @@ public class FortitudeHandler
 
         var existing = _receivedRequests.FirstOrDefault(r => predicate?.Invoke(r) ?? true);
         if (existing != null)
-            return Task.FromResult(existing);
+            return Task.FromResult(existing)!;
 
         var tcs = new TaskCompletionSource<FortitudeRequest?>(TaskCreationOptions.RunContinuationsAsynchronously);
 

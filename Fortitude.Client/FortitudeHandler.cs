@@ -345,7 +345,7 @@ public class FortitudeHandlerBuilder
     /// <summary>
     ///     Matches requests whose JSON body satisfies the provided predicate.
     /// </summary>
-    public FortitudeHandlerBuilder JsonBody<T>(Func<T, bool> predicate)
+    public FortitudeHandlerBuilder JsonBody<T>(Func<T, bool> predicate, JsonSerializerOptions? options = null)
     {
         if (predicate == null)
             throw new ArgumentNullException(nameof(predicate));
@@ -357,7 +357,7 @@ public class FortitudeHandlerBuilder
 
             try
             {
-                var value = JsonSerializer.Deserialize<T>(body, JsonSerializerOptions.Web);
+                var value = JsonSerializer.Deserialize<T>(body, options ?? JsonSerializerOptions.Web);
                 return value != null && predicate(value);
             }
             catch

@@ -163,7 +163,6 @@ public static class FortitudeServer
         var port = -1;
         try
         {
-            Console.WriteLine(fortitudeBaseUrl);
             port = await fortitude.StartAsync($"{fortitudeBaseUrl.TrimEnd('/')}/fortitude/hub");
         }
         catch (Exception ex)

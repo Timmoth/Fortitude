@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 
@@ -39,6 +40,8 @@ public class HttpClientInterceptorMiddleware(FortitudeClient client) : Delegatin
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        return await client.TryHandle(request, cancellationToken);
+        var response = await client.TryHandle(request, cancellationToken);
+        response.RequestMessage = request;
+        return response;
     }
 }
