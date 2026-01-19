@@ -13,4 +13,8 @@
       <ProjectReference Include="..\Fortitude.Example.Api\Fortitude.Example.Api.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Aspire.Hosting.AppHost" Version="13.1.0" />
+    </ItemGroup>
+
 </Project>
