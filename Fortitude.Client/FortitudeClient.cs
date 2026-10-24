@@ -333,7 +333,22 @@ public class FortitudeClient : IAsyncDisposable
         if (logger is null)
             throw new ArgumentNullException(nameof(logger));
 
-        return new FortitudeClient(new TestOutputLogger<FortitudeClient>(logger));
+        return Create(logger.WriteLine);
+    }
+
+    /// <summary>
+    ///     Creates a <see cref="FortitudeClient" /> that writes diagnostics to a callback.
+    /// </summary>
+    /// <param name="writeLine">
+    ///     Receives one line per log entry — <c>TestContext.WriteLine</c> under NUnit or
+    ///     MSTest, or any other sink.
+    /// </param>
+    public static FortitudeClient Create(Action<string> writeLine)
+    {
+        if (writeLine is null)
+            throw new ArgumentNullException(nameof(writeLine));
+
+        return new FortitudeClient(new TestOutputLogger<FortitudeClient>(writeLine));
     }
 
     /// <summary>

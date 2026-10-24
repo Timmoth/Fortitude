@@ -152,12 +152,33 @@ public static class FortitudeServer
         string fortitudeBaseUrl,
         ITestOutputHelper logger)
     {
-        if (string.IsNullOrWhiteSpace(fortitudeBaseUrl))
-            throw new ArgumentException("Fortitude base URL cannot be null or empty.", nameof(fortitudeBaseUrl));
-
         if (logger is null)
             throw new ArgumentNullException(nameof(logger));
 
+        return await ConnectAsync(fortitudeBaseUrl, logger.WriteLine).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Creates and starts a <see cref="FortitudeClient" /> connected to the specified base
+    ///     URL, writing diagnostics to <paramref name="writeLine" />.
+    /// </summary>
+    /// <param name="fortitudeBaseUrl">The base URL of the Fortitude server.</param>
+    /// <param name="writeLine">
+    ///     Receives one line per log entry — <c>TestContext.WriteLine</c> under NUnit or
+    ///     MSTest, or any other sink.
+    /// </param>
+    /// <returns>The connected client, and the URL the system under test should be pointed at.</returns>
+    public static async Task<(FortitudeClient, string)> ConnectAsync(
+        string fortitudeBaseUrl,
+        Action<string> writeLine)
+    {
+        if (string.IsNullOrWhiteSpace(fortitudeBaseUrl))
+            throw new ArgumentException("Fortitude base URL cannot be null or empty.", nameof(fortitudeBaseUrl));
+
+        if (writeLine is null)
+            throw new ArgumentNullException(nameof(writeLine));
+
+        var logger = writeLine;
         var fortitude = new FortitudeClient(new TestOutputLogger<FortitudeClient>(logger));
 
         var port = -1;
@@ -167,12 +188,12 @@ public static class FortitudeServer
         }
         catch (Exception ex)
         {
-            logger.WriteLine($"[ERROR] Failed to start FortitudeClient: {ex}");
+            logger($"[ERROR] Failed to start FortitudeClient: {ex}");
             throw;
         }
 
         var uiServerUrl = $"{fortitudeBaseUrl.TrimEnd('/')}/fortitude";
-        logger.WriteLine("Fortitude server UI live at {0}...", uiServerUrl);
+        logger($"Fortitude server UI live at {uiServerUrl}...");
 
         return (fortitude, ReplacePort(fortitudeBaseUrl.TrimEnd('/'), port));
     }
@@ -327,21 +348,34 @@ public static class FortitudeServer
 }
 
 /// <summary>
-///     An <see cref="ILogger{T}" /> implementation that writes logs to xUnit <see cref="ITestOutputHelper" />.
-///     Useful for logging during test execution.
+///     An <see cref="ILogger{T}" /> that writes each entry to a callback.
 /// </summary>
 /// <typeparam name="T">The type associated with the logger.</typeparam>
+/// <remarks>
+///     Bridges Fortitude's logging to whatever the test framework offers. xUnit callers can
+///     pass an <see cref="ITestOutputHelper" /> directly; NUnit, MSTest and TUnit users can
+///     pass their own write callback, for example <c>TestContext.WriteLine</c>.
+/// </remarks>
 public class TestOutputLogger<T> : ILogger<T>
 {
-    private readonly ITestOutputHelper _output;
+    private readonly Action<string> _write;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="TestOutputLogger{T}" /> class.
+    ///     Initializes a new instance writing to an arbitrary callback.
+    /// </summary>
+    /// <param name="write">Receives one line per log entry.</param>
+    public TestOutputLogger(Action<string> write)
+    {
+        _write = write ?? throw new ArgumentNullException(nameof(write));
+    }
+
+    /// <summary>
+    ///     Initializes a new instance writing to an xUnit test output helper.
     /// </summary>
     /// <param name="output">The xUnit test output helper.</param>
     public TestOutputLogger(ITestOutputHelper output)
+        : this((output ?? throw new ArgumentNullException(nameof(output))).WriteLine)
     {
-        _output = output ?? throw new ArgumentNullException(nameof(output));
     }
 
     /// <inheritdoc />
@@ -367,10 +401,10 @@ public class TestOutputLogger<T> : ILogger<T>
         {
             var message = formatter(state, exception);
             if (!string.IsNullOrEmpty(message))
-                _output.WriteLine($"[{logLevel}] {message}");
+                _write($"[{logLevel}] {message}");
 
             if (exception != null)
-                _output.WriteLine(exception.ToString());
+                _write(exception.ToString());
         }
         catch
         {

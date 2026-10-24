@@ -421,3 +421,7 @@ Fortitude.Server/.DS_Store
 
 # Local scratch / planning
 temp/
+
+# JetBrains Rider / IntelliJ project settings - per developer, not per repo
+.idea/
+*.DotSettings.user

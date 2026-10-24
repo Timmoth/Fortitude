@@ -1,7 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <!--
+          Multi-targeted so the package is usable from projects still on the current LTS,
+          not only from net10.0.
+        -->
+        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>Fortitude.Client</RootNamespace>
@@ -20,19 +24,30 @@
         <GenerateDocumentationFile>True</GenerateDocumentationFile>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Jint" Version="4.17.0" />
-        <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.13" />
-        <PackageReference Include="Microsoft.AspNetCore.Routing" Version="2.3.13" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.13" />
-        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.13" />
-        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.13" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.13" />
-        <PackageReference Include="xunit.abstractions" Version="2.0.3"/>
-        <PackageReference Include="YamlDotNet" Version="18.1.0" />
+        <PackageReference Include="Jint" />
+        <PackageReference Include="Microsoft.AspNetCore.Http" />
+        <PackageReference Include="Microsoft.AspNetCore.Routing" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" />
+        <PackageReference Include="Microsoft.Extensions.Http" />
+        <PackageReference Include="Microsoft.Extensions.Logging" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+        <PackageReference Include="xunit.abstractions"/>
+        <PackageReference Include="YamlDotNet" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="../README.md" Pack="true" PackagePath="\"/>
+        <None Include="../docs/icon.png" Pack="true" PackagePath="icon.png"/>
     </ItemGroup>
 
 </Project>

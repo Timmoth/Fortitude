@@ -1,0 +1,42 @@
+<Project>
+
+    <!--
+      Central package management: every PackageReference in the solution takes its version
+      from here, so the five projects cannot drift apart again. Projects reference packages
+      by name only.
+    -->
+    <PropertyGroup>
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    </PropertyGroup>
+
+    <ItemGroup Label="Runtime">
+        <PackageVersion Include="Jint" Version="4.17.0"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Http" Version="2.3.13"/>
+        <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Routing" Version="2.3.13"/>
+        <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13"/>
+        <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.13"/>
+        <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.13"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.13"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.13"/>
+        <PackageVersion Include="YamlDotNet" Version="18.1.0"/>
+    </ItemGroup>
+
+    <ItemGroup Label="Testing">
+        <PackageVersion Include="coverlet.collector" Version="10.1.0"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13"/>
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0"/>
+        <PackageVersion Include="xunit" Version="2.9.3"/>
+        <PackageVersion Include="xunit.abstractions" Version="2.0.3"/>
+        <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1"/>
+    </ItemGroup>
+
+    <ItemGroup Label="Examples">
+        <PackageVersion Include="Aspire.Hosting" Version="13.6.4"/>
+        <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.4"/>
+        <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.4"/>
+        <PackageVersion Include="Testcontainers" Version="4.16.0"/>
+        <PackageVersion Include="Testcontainers.Xunit" Version="4.16.0"/>
+    </ItemGroup>
+
+</Project>
