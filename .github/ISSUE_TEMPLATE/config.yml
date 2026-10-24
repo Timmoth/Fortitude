@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Timmoth/Fortitude/security/advisories/new
+    about: Report privately, not as a public issue.
+  - name: Documentation
+    url: https://github.com/Timmoth/Fortitude/tree/main/docs
+    about: Guides for mocking, YAML handlers, the admin API, OpenAPI import and recording.

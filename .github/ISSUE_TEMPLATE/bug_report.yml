@@ -1,0 +1,59 @@
+name: Bug report
+description: Something does not behave the way it is documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The more precisely this is pinned down, the faster it gets fixed.
+
+        For a security problem, please use the [security advisory form](https://github.com/Timmoth/Fortitude/security/advisories/new)
+        instead of a public issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to reproduce
+      description: >
+        A failing test, a handler definition, or the smallest set of steps that shows it.
+      render: csharp
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: How are you running Fortitude?
+      options:
+        - External server via Docker
+        - External server via dotnet run
+        - .NET Aspire
+        - In-process intercept mode
+        - YAML handlers only
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: NuGet package version, Docker image tag, or commit.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >
+        Relevant server output. The log usually says which handler matched, or that none did.
+      render: text
