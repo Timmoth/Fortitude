@@ -1,421 +1,298 @@
-using System.Text;
-using System.Text.Json;
+using System.Collections.Concurrent;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Template;
 
 namespace Fortitude.Client;
 
 /// <summary>
-///     Provides extension methods to build request handlers for a <see cref="FortitudeClient" />.
+///     A robust Fortitude request handler that matches requests, tracks received requests,
+///     and supports synchronous or asynchronous responders.
 /// </summary>
-public static class FortitudeHandlerExtensions
+public class FortitudeHandler
 {
-    /// <summary>
-    ///     Starts building a handler for the specified <see cref="FortitudeClient" />.
-    /// </summary>
-    /// <param name="client">The Fortitude client.</param>
-    /// <returns>A <see cref="FortitudeHandlerBuilder" /> for fluent configuration.</returns>
-    public static FortitudeHandlerBuilder Accepts(this FortitudeClient client)
-    {
-        if (client == null) throw new ArgumentNullException(nameof(client));
-        return new FortitudeHandlerBuilder(client);
-    }
-}
+    private readonly Func<FortitudeRequest, FortitudeResponse, Task> _asyncResponder;
+    private readonly Func<byte[]?, bool>? _bodyPredicate;
 
-/// <summary>
-///     Fluent builder for defining request handlers on a <see cref="FortitudeClient" />.
-/// </summary>
-public class FortitudeHandlerBuilder
-{
-    private readonly FortitudeClient? _client;
-    private readonly Dictionary<string, string> _headers = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _methods = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _queryParams = new(StringComparer.OrdinalIgnoreCase);
-    private Func<byte[]?, bool>? _bodyPredicate;
-    private Func<FortitudeRequest, bool>? _requestPredicate;
-    private string? _route;
+    private readonly Dictionary<string, string> _headers;
+    private readonly HashSet<string> _methods;
+    private readonly Dictionary<string, string> _queryParams;
+
+    private readonly ConcurrentQueue<FortitudeRequest> _receivedRequests = new();
+    private readonly string? _route;
+    private readonly RouteTemplate? _routeTemplate;
+
+    private readonly List<Waiter> _waiters = new();
+    private readonly object _waitersLock = new();
+    private readonly Func<FortitudeRequest, bool>? _requestPredicate;
 
     /// <summary>
-    ///     Initializes a new instance of <see cref="FortitudeHandlerBuilder" />.
+    ///     Initializes a new instance of <see cref="FortitudeHandler" /> with an asynchronous responder.
     /// </summary>
-    /// <param name="fortitudeClient">The client to attach handlers to.</param>
-    public FortitudeHandlerBuilder(FortitudeClient? fortitudeClient)
+    public FortitudeHandler(IEnumerable<string>? methods,
+        string? route,
+        Dictionary<string, string>? headers,
+        Dictionary<string, string>? queryParams,
+        Func<byte[]?, bool>? bodyPredicate,
+        Func<FortitudeRequest, bool>? requestPredicate,
+        Func<FortitudeRequest, FortitudeResponse, Task> asyncResponder)
     {
-        _client = fortitudeClient;
-    }
-
-    #region Request predicates
-
-    /// <summary>
-    ///     Adds a request-level predicate to the handler.
-    /// </summary>
-    /// <param name="predicate">Predicate used to match requests.</param>
-    /// <returns>The current builder instance.</returns>
-    public FortitudeHandlerBuilder Matches(Func<FortitudeRequest, bool> predicate)
-    {
-        _requestPredicate = predicate ?? throw new ArgumentNullException(nameof(predicate));
-        return this;
-    }
-
-    #endregion
-
-    #region HTTP Methods
-
-    /// <summary>
-    ///     Adds an HTTP method to the handler.
-    /// </summary>
-    /// <param name="method">The HTTP method to match.</param>
-    /// <returns>The current builder instance.</returns>
-    public FortitudeHandlerBuilder Method(string method)
-    {
-        if (string.IsNullOrWhiteSpace(method))
-            throw new ArgumentException("HTTP method cannot be null or empty.", nameof(method));
-
-        _methods.Add(method.ToUpperInvariant());
-        return this;
-    }
-
-    /// <summary>
-    ///     Matches HTTP GET requests.
-    /// </summary>
-    public FortitudeHandlerBuilder Get()
-    {
-        return Method("GET");
-    }
-
-    /// <summary>
-    ///     Matches HTTP POST requests.
-    /// </summary>
-    public FortitudeHandlerBuilder Post()
-    {
-        return Method("POST");
-    }
-
-    /// <summary>
-    ///     Matches HTTP PUT requests.
-    /// </summary>
-    public FortitudeHandlerBuilder Put()
-    {
-        return Method("PUT");
-    }
-
-    /// <summary>
-    ///     Matches HTTP DELETE requests.
-    /// </summary>
-    public FortitudeHandlerBuilder Delete()
-    {
-        return Method("DELETE");
-    }
-
-    /// <summary>
-    ///     Matches HTTP PATCH requests.
-    /// </summary>
-    public FortitudeHandlerBuilder Patch()
-    {
-        return Method("PATCH");
-    }
-
-    /// <summary>
-    ///     Matches HTTP OPTIONS requests.
-    /// </summary>
-    public FortitudeHandlerBuilder Options()
-    {
-        return Method("OPTIONS");
-    }
-
-    /// <summary>
-    ///     Adds multiple HTTP methods at once.
-    /// </summary>
-    /// <param name="methods">The HTTP methods to match.</param>
-    public FortitudeHandlerBuilder Methods(params string[] methods)
-    {
-        if (methods == null || methods.Length == 0)
-            throw new ArgumentException("Methods cannot be null or empty.", nameof(methods));
-
-        foreach (var m in methods)
-            Method(m);
-
-        return this;
-    }
-
-    /// <summary>
-    ///     Matches any HTTP method.
-    /// </summary>
-    public FortitudeHandlerBuilder AnyMethod()
-    {
-        _methods.Clear();
-        return this;
-    }
-
-    #endregion
-
-    #region Routing & Filtering
-
-    /// <summary>
-    ///     Sets the HTTP route the handler will match.
-    /// </summary>
-    /// <param name="route">The route to match.</param>
-    public FortitudeHandlerBuilder HttpRoute(string route)
-    {
-        if (string.IsNullOrWhiteSpace(route))
-            throw new ArgumentException("Route cannot be null or empty.", nameof(route));
-
+        _methods = new HashSet<string>(methods ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
         _route = route;
-        return this;
+        _headers = headers ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        _queryParams = queryParams ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        _bodyPredicate = bodyPredicate;
+        _requestPredicate = requestPredicate;
+        _routeTemplate = route != null ? TemplateParser.Parse(route) : null;
+        _asyncResponder = asyncResponder ?? throw new ArgumentNullException(nameof(asyncResponder));
     }
 
     /// <summary>
-    ///     Matches requests whose route starts with the specified prefix.
+    ///     Initializes a new instance of <see cref="FortitudeHandler" /> with a synchronous responder.
     /// </summary>
-    public FortitudeHandlerBuilder RouteStartsWith(string prefix)
-    {
-        if (string.IsNullOrWhiteSpace(prefix))
-            throw new ArgumentException("Prefix cannot be null or empty.", nameof(prefix));
-
-        return Matches(r => r.Route.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-    }
-
-    /// <summary>
-    ///     Matches requests whose route ends with the specified suffix.
-    /// </summary>
-    public FortitudeHandlerBuilder RouteEndsWith(string suffix)
-    {
-        if (string.IsNullOrWhiteSpace(suffix))
-            throw new ArgumentException("Suffix cannot be null or empty.", nameof(suffix));
-
-        return Matches(r => r.Route.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
-    }
-
-    #endregion
-
-    #region Header helpers
-
-    /// <summary>
-    ///     Adds a required header for the handler to match.
-    /// </summary>
-    public FortitudeHandlerBuilder Header(string key, string value)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-            throw new ArgumentException("Header key cannot be null or empty.", nameof(key));
-
-        _headers[key] = value ?? throw new ArgumentNullException(nameof(value));
-        return this;
-    }
-
-    /// <summary>
-    ///     Matches requests containing the specified header, regardless of value.
-    /// </summary>
-    public FortitudeHandlerBuilder HeaderExists(string key)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-            throw new ArgumentException("Header key cannot be null or empty.", nameof(key));
-
-        return Matches(req => req.Headers.ContainsKey(key));
-    }
-
-    /// <summary>
-    ///     Matches requests containing the specified Authorization header.
-    /// </summary>
-    public FortitudeHandlerBuilder Authorization(string value)
-    {
-        return Header("Authorization", value);
-    }
-
-    /// <summary>
-    ///     Matches requests containing a Bearer token.
-    /// </summary>
-    public FortitudeHandlerBuilder BearerToken(string token)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-            throw new ArgumentException("Token cannot be null or empty.", nameof(token));
-
-        return Header("Authorization", $"Bearer {token}");
-    }
-
-    /// <summary>
-    ///     Matches requests containing a specific Accept header.
-    /// </summary>
-    public FortitudeHandlerBuilder Accept(string mediaType)
-    {
-        return Header("Accept", mediaType);
-    }
-
-    /// <summary>
-    ///     Matches requests with a specific Content-Type header.
-    /// </summary>
-    public FortitudeHandlerBuilder ContentType(string contentType)
-    {
-        return Header("Content-Type", contentType);
-    }
-
-    /// <summary>
-    ///     Matches requests with a specific User-Agent header.
-    /// </summary>
-    public FortitudeHandlerBuilder UserAgent(string userAgent)
-    {
-        return Header("User-Agent", userAgent);
-    }
-
-    #endregion
-
-    #region Query helpers
-
-    /// <summary>
-    ///     Adds a required query parameter for the handler to match.
-    /// </summary>
-    public FortitudeHandlerBuilder QueryParam(string key, string value)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-            throw new ArgumentException("Query parameter key cannot be null or empty.", nameof(key));
-
-        _queryParams[key] = value ?? throw new ArgumentNullException(nameof(value));
-        return this;
-    }
-
-    /// <summary>
-    ///     Matches requests containing the specified query parameter, regardless of value.
-    /// </summary>
-    public FortitudeHandlerBuilder QueryParamExists(string key)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-            throw new ArgumentException("Query parameter key cannot be null or empty.", nameof(key));
-
-        return Matches(req => req.Query.ContainsKey(key));
-    }
-
-    /// <summary>
-    ///     Adds multiple required query parameters at once.
-    /// </summary>
-    public FortitudeHandlerBuilder QueryParams(Dictionary<string, string> parameters)
-    {
-        if (parameters == null)
-            throw new ArgumentNullException(nameof(parameters));
-
-        foreach (var kvp in parameters)
-            QueryParam(kvp.Key, kvp.Value);
-
-        return this;
-    }
-
-    #endregion
-
-    #region Body helpers
-
-    /// <summary>
-    ///     Adds a predicate to match the request body.
-    /// </summary>
-    public FortitudeHandlerBuilder Body(Func<byte[]?, bool> predicate)
-    {
-        _bodyPredicate = predicate ?? throw new ArgumentNullException(nameof(predicate));
-        return this;
-    }
-
-    /// <summary>
-    ///     Matches requests with no body or an empty body.
-    /// </summary>
-    public FortitudeHandlerBuilder BodyIsEmpty()
-    {
-        return Body(body => body == null || body.Length == 0);
-    }
-
-    /// <summary>
-    ///     Matches requests whose body contains the specified UTF-8 text.
-    /// </summary>
-    public FortitudeHandlerBuilder BodyContains(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            throw new ArgumentException("Text cannot be null or empty.", nameof(text));
-
-        return Body(body =>
-        {
-            if (body == null || body.Length == 0)
-                return false;
-
-            var content = Encoding.UTF8.GetString(body);
-            return content.Contains(text, StringComparison.Ordinal);
-        });
-    }
-
-    /// <summary>
-    ///     Matches requests with a JSON content type.
-    /// </summary>
-    public FortitudeHandlerBuilder JsonBody()
-    {
-        return ContentType("application/json");
-    }
-
-    /// <summary>
-    ///     Matches requests whose JSON body satisfies the provided predicate.
-    /// </summary>
-    public FortitudeHandlerBuilder JsonBody<T>(Func<T, bool> predicate, JsonSerializerOptions? options = null)
-    {
-        if (predicate == null)
-            throw new ArgumentNullException(nameof(predicate));
-
-        return Body(body =>
-        {
-            if (body == null || body.Length == 0)
-                return false;
-
-            try
+    public FortitudeHandler(IEnumerable<string>? methods,
+        string? route,
+        Dictionary<string, string>? headers,
+        Dictionary<string, string>? queryParams,
+        Func<byte[]?, bool>? bodyPredicate,
+        Func<FortitudeRequest, bool>? requestPredicate,
+        Action<FortitudeRequest, FortitudeResponse> responder)
+        : this(methods, route, headers, queryParams, bodyPredicate, requestPredicate,
+            (req, res) =>
             {
-                var value = JsonSerializer.Deserialize<T>(body, options ?? JsonSerializerOptions.Web);
-                return value != null && predicate(value);
-            }
-            catch
-            {
+                responder?.Invoke(req, res);
+                return Task.CompletedTask;
+            })
+    {
+    }
+
+    /// <summary>
+    ///     Whether this handler participates in matching. A disabled handler matches nothing.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    ///     Thread-safe list of received requests.
+    /// </summary>
+    public IReadOnlyList<FortitudeRequest> ReceivedRequests => _receivedRequests.ToArray();
+
+    /// <summary>
+    ///     Checks if this handler matches the given request.
+    /// </summary>
+    public bool Matches(FortitudeRequest req)
+    {
+        if (!Enabled) return false;
+        if (_methods.Any() && !_methods.Contains(req.Method)) return false;
+
+        if (_routeTemplate != null)
+        {
+            // Define the template
+            var matcher = new TemplateMatcher(_routeTemplate, new RouteValueDictionary());
+            var dict = new RouteValueDictionary();
+            if (!matcher.TryMatch(req.Route, dict)) return false;
+        }
+
+        foreach (var header in _headers)
+            if (!req.Headers.TryGetValue(header.Key, out var values) || !values.Contains(header.Value))
                 return false;
-            }
-        });
-    }
 
-    #endregion
+        foreach (var qp in _queryParams)
+            if (!req.Query.TryGetValue(qp.Key, out var values) || !values.Contains(qp.Value))
+                return false;
 
-    #region Responder
+        if (_bodyPredicate != null && !_bodyPredicate(req.Body)) return false;
+        if (_requestPredicate != null && !_requestPredicate(req)) return false;
 
-    /// <summary>
-    ///     Registers a synchronous responder for matched requests.
-    /// </summary>
-    /// <param name="responder">The action used to generate a response.</param>
-    /// <returns>The created handler.</returns>
-    public FortitudeHandler Returns(Action<FortitudeRequest, FortitudeResponse> responder)
-    {
-        if (responder == null) throw new ArgumentNullException(nameof(responder));
-
-        var handler = new FortitudeHandler(
-            _methods,
-            _route,
-            _headers,
-            _queryParams,
-            _bodyPredicate,
-            _requestPredicate,
-            responder
-        );
-
-        _client?.AddHandler(handler);
-        return handler;
+        return true;
     }
 
     /// <summary>
-    ///     Registers an asynchronous responder for matched requests.
+    ///     Handles the request, invokes the responder, tracks it, and notifies waiters.
     /// </summary>
-    /// <param name="asyncResponder">The async function used to generate a response.</param>
-    /// <returns>The created handler.</returns>
-    public FortitudeHandler Returns(Func<FortitudeRequest, FortitudeResponse, Task> asyncResponder)
+    public async Task<FortitudeResponse> HandleRequestAsync(FortitudeRequest req)
     {
-        if (asyncResponder == null) throw new ArgumentNullException(nameof(asyncResponder));
+        if (req == null) throw new ArgumentNullException(nameof(req));
 
-        var handler = new FortitudeHandler(
-            _methods,
-            _route,
-            _headers,
-            _queryParams,
-            _bodyPredicate,
-            _requestPredicate,
-            asyncResponder
-        );
+        _receivedRequests.Enqueue(req);
+        NotifyWaiters(req);
 
-        _client?.AddHandler(handler);
-        return handler;
+        var response = new FortitudeResponse(req.RequestId);
+
+        try
+        {
+            await _asyncResponder(req, response).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error executing responder for request {req.RequestId}", ex);
+        }
+
+        return response;
     }
 
-    #endregion
+    /// <summary>
+    ///     Returns true if at least one matching request has been received.
+    /// </summary>
+    public bool HasReceived(Func<FortitudeRequest, bool>? predicate = null)
+    {
+        return _receivedRequests.Any(r => predicate?.Invoke(r) ?? true);
+    }
+
+    /// <summary>
+    ///     Waits asynchronously for a matching request or until the timeout expires.
+    /// </summary>
+    /// <param name="timeoutMs">Timeout in milliseconds.</param>
+    /// <param name="predicate">Optional predicate to filter requests.</param>
+    /// <returns>The matching request, or null if timeout expires.</returns>
+    public Task<FortitudeRequest?> WaitForRequestAsync(int timeoutMs = 5000,
+        Func<FortitudeRequest, bool>? predicate = null)
+    {
+        if (timeoutMs <= 0)
+            throw new ArgumentOutOfRangeException(nameof(timeoutMs), "Timeout must be greater than zero.");
+
+        var existing = _receivedRequests.FirstOrDefault(r => predicate?.Invoke(r) ?? true);
+        if (existing != null)
+            return Task.FromResult(existing)!;
+
+        var waiter = new Waiter(predicate);
+
+        lock (_waitersLock)
+        {
+            _waiters.Add(waiter);
+        }
+
+        waiter.StartTimeout(timeoutMs, () => Remove(waiter));
+
+        return waiter.Task;
+    }
+
+    /// <summary>
+    ///     Notifies waiting tasks of a newly received request.
+    /// </summary>
+    /// <remarks>
+    ///     Only waiters whose own predicate accepts the request are completed. The request has
+    ///     already satisfied this handler's match criteria by the time it gets here, so
+    ///     re-testing those would ignore what the caller actually asked to wait for.
+    /// </remarks>
+    private void NotifyWaiters(FortitudeRequest req)
+    {
+        List<Waiter> satisfied;
+
+        lock (_waitersLock)
+        {
+            satisfied = _waiters.Where(w => w.Accepts(req)).ToList();
+
+            foreach (var waiter in satisfied)
+                _waiters.Remove(waiter);
+        }
+
+        // Complete outside the lock: continuations may run inline and call back in.
+        foreach (var waiter in satisfied)
+            waiter.Complete(req);
+    }
+
+    private void Remove(Waiter waiter)
+    {
+        lock (_waitersLock)
+        {
+            _waiters.Remove(waiter);
+        }
+    }
+
+    /// <summary>
+    ///     One pending <see cref="WaitForRequestAsync" /> call: the task to complete, the
+    ///     caller's filter, and the timeout that abandons it.
+    /// </summary>
+    private sealed class Waiter(Func<FortitudeRequest, bool>? predicate)
+    {
+        private readonly TaskCompletionSource<FortitudeRequest?> _tcs =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private CancellationTokenSource? _cts;
+        private CancellationTokenRegistration _registration;
+
+        public Task<FortitudeRequest?> Task => _tcs.Task;
+
+        public bool Accepts(FortitudeRequest req) =>
+            !_tcs.Task.IsCompleted && (predicate?.Invoke(req) ?? true);
+
+        public void StartTimeout(int timeoutMs, Action onTimeout)
+        {
+            _cts = new CancellationTokenSource(timeoutMs);
+
+            _registration = _cts.Token.Register(() =>
+            {
+                if (_tcs.TrySetResult(null))
+                    onTimeout();
+
+                Cleanup();
+            });
+        }
+
+        public void Complete(FortitudeRequest req)
+        {
+            _tcs.TrySetResult(req);
+            Cleanup();
+        }
+
+        /// <summary>
+        ///     Releases the timer backing the timeout. Without this every wait leaks a
+        ///     <see cref="CancellationTokenSource" /> and its registration for the life of
+        ///     the handler.
+        /// </summary>
+        private void Cleanup()
+        {
+            _registration.Dispose();
+            _cts?.Dispose();
+            _cts = null;
+        }
+    }
+
+    /// <summary>
+    ///     A readable summary of what this handler matches, used in logs and in the
+    ///     diagnostics shown when no handler matched a request.
+    /// </summary>
+    public override string ToString()
+    {
+        var parts = new List<string>();
+
+        // Methods
+        if (_methods.Any())
+            parts.Add($"[{string.Join(", ", _methods)}]");
+        else
+            parts.Add("[ANY]");
+
+        // Route
+        parts.Add(_route ?? "*");
+
+        // Query parameters
+        if (_queryParams.Any())
+        {
+            var qp = string.Join("&",
+                _queryParams.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+            parts[^1] += $"?{qp}";
+        }
+
+        // Headers
+        if (_headers.Any())
+        {
+            var hdr = string.Join(", ",
+                _headers.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+            parts.Add($"(Headers: {hdr})");
+        }
+
+        // Body predicate indicator
+        if (_bodyPredicate != null)
+            parts.Add("(Body: predicate)");
+
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    ///     Starts building a handler.
+    /// </summary>
+    /// <returns>A <see cref="FortitudeHandlerBuilder" /> for fluent configuration.</returns>
+    public static FortitudeHandlerBuilder Accepts()
+    {
+        return new FortitudeHandlerBuilder(null);
+    }
 }

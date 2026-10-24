@@ -18,8 +18,7 @@ public sealed class DockerContainerFixture : IAsyncLifetime
             .WithName("fortitude-server-test:latest") 
             .Build();
 
-        Container = new ContainerBuilder()
-            .WithImage(_image)
+        Container = new ContainerBuilder(_image)
             .WithEnvironment("ASPNETCORE_URLS", "http://+:8080")
             .WithPortBinding(8080, true)
             .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(8080))

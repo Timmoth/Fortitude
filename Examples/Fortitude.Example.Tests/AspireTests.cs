@@ -12,7 +12,7 @@ public class AspireTests(ITestOutputHelper output, AspireTestFixture fixture) : 
     public async Task CreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
         // Given: Fortitude fake server simulating the external API
-        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(fixture._app.GetEndpoint("fortitude-server").AbsoluteUri, output);
+        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(fixture.App.GetEndpoint("fortitude-server").AbsoluteUri, output);
 
         var expectedName = "Alice";
         var expectedEmail = "alice@example.com";
@@ -62,7 +62,7 @@ public class AspireTests(ITestOutputHelper output, AspireTestFixture fixture) : 
         };
 
         // Given: Fortitude fake server simulating the external API
-        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(fixture._app.GetEndpoint("fortitude-server").AbsoluteUri, output);
+        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(fixture.App.GetEndpoint("fortitude-server").AbsoluteUri, output);
     
         var getHandler = fortitude.Accepts()
             .Get()
@@ -94,7 +94,7 @@ public class AspireTests(ITestOutputHelper output, AspireTestFixture fixture) : 
     public async Task GetCreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
         // Given: Fortitude fake server simulating the external API
-        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(fixture._app.GetEndpoint("fortitude-server").AbsoluteUri, output);
+        var (fortitude, mockServiceUrl) = await FortitudeServer.ConnectAsync(fixture.App.GetEndpoint("fortitude-server").AbsoluteUri, output);
 
         var users = new List<User>
         {

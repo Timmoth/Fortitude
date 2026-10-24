@@ -1,4 +1,4 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.0.2">
+<Project Sdk="Aspire.AppHost.Sdk/13.6.4">
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -6,6 +6,11 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <UserSecretsId>2585e503-0ea4-400c-9f91-a34e118f8f23</UserSecretsId>
+        <!--
+          This AppHost only wires up the example projects for the integration tests; it does
+          not use any feature that needs the Aspire CLI bundle.
+        -->
+        <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

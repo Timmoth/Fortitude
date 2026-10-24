@@ -134,11 +134,15 @@ public record FortitudeRequest
             ctx.Request.Body.Position = 0;
         }
 
+        // StringValues.ToArray() is string?[]; a header present in the collection never has
+        // null entries, so narrow it rather than widening the model to string?[].
         var headers = ctx.Request.Headers
-            .ToDictionary(h => h.Key, h => h.Value.ToArray(), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(h => h.Key, h => h.Value.Select(v => v ?? string.Empty).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
 
         var query = ctx.Request.Query
-            .ToDictionary(q => q.Key, q => q.Value.ToArray(), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(q => q.Key, q => q.Value.Select(v => v ?? string.Empty).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
 
         var cookies = ctx.Request.Cookies
             .ToDictionary(c => c.Key, c => c.Value, StringComparer.OrdinalIgnoreCase);
@@ -227,7 +231,7 @@ public record FortitudeRequest
         var queryParams = QueryHelpers.ParseQuery(uri.Query)
             .ToDictionary(
                 x => x.Key,
-                x => x.Value.ToArray(),
+                x => x.Value.Select(v => v ?? string.Empty).ToArray(),
                 StringComparer.OrdinalIgnoreCase
             );
 
@@ -278,6 +282,10 @@ public record FortitudeRequest
         return $"{Method} {Route}{query}{contentType} [RequestId: {RequestId}]";
     }
 
+    /// <summary>
+    ///     Renders this request as a cURL command, for pasting into a terminal or into the
+    ///     live UI's handler generator.
+    /// </summary>
     public string ToCurl()
     {
         var sb = new StringBuilder();

@@ -8,6 +8,13 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace Fortitude.Client;
 
+/// <summary>
+///     Loads Fortitude handler definitions from YAML, either from files on disk or from text.
+/// </summary>
+/// <remarks>
+///     The YAML schema is described by <see cref="FortitudeFile" /> and the definition records
+///     below it. See <c>docs/yaml-handlers.md</c> for the authoring guide.
+/// </remarks>
 public static class FortitudeYamlLoader
 {
     private sealed class TemplateContext
@@ -267,6 +274,10 @@ public static class FortitudeYamlLoader
         return message.ReplaceLineEndings(" ");
     }
     
+    /// <summary>
+    ///     Parses a single handler definition — a document with top level <c>match</c> and
+    ///     <c>response</c> keys, without the enclosing <c>handlers:</c> sequence.
+    /// </summary>
     public static FortitudeHandler FromYamlSingle(string yaml)
     {
         var deserializer = new DeserializerBuilder()
@@ -278,6 +289,10 @@ public static class FortitudeYamlLoader
         return ToHandler(handler);
     }
     
+    /// <summary>
+    ///     Parses a handler definition document: a <c>handlers:</c> sequence of
+    ///     <c>match</c>/<c>response</c> pairs.
+    /// </summary>
     public static IEnumerable<FortitudeHandler> FromYamlMulti(string yaml)
     {
         var deserializer = new DeserializerBuilder()
@@ -401,41 +416,19 @@ public static class FortitudeYamlLoader
 
     
     // -------------------------------
-    // Request-level predicate (headers + query)
+    // Request-level predicate (presence-only header and query checks)
     // -------------------------------
+    // Exact header and query values are enforced by the handler itself from the `headers`
+    // and `queryParams` arguments below, so only the existence checks need a predicate.
     Func<FortitudeRequest, bool>? requestPredicate = null;
     var headerExists = handler.Match.HeaderExists ?? [];
     var queryExists = handler.Match.QueryExists ?? [];
 
-    if ((headers?.Count ?? 0) > 0 || headerExists.Count != 0 || (queryParams?.Count ?? 0) > 0 || queryExists.Any())
+    if (headerExists.Count > 0 || queryExists.Count > 0)
     {
         requestPredicate = req =>
-        {
-            // Headers with exact values
-            if (headers != null)
-            {
-                foreach (var kvp in headers)
-                    if (!req.Headers.TryGetValue(kvp.Key, out var value) || !value.Contains(kvp.Value))
-                        return false;
-            }
-
-            // Headers existence only
-            if (headerExists.Any(key => !req.Headers.ContainsKey(key)))
-            {
-                return false;
-            }
-
-            // Query params exact match
-            if (queryParams != null)
-            {
-                foreach (var kvp in queryParams)
-                    if (!req.Query.TryGetValue(kvp.Key, out var value) || !value.Contains(kvp.Value))
-                        return false;
-            }
-
-            // Query params existence only
-            return queryExists.All(key => req.Query.ContainsKey(key));
-        };
+            headerExists.All(key => req.Headers.ContainsKey(key))
+            && queryExists.All(key => req.Query.ContainsKey(key));
     }
 
     // -------------------------------
@@ -504,54 +497,104 @@ public static class FortitudeYamlLoader
     
 }
 
+/// <summary>
+///     A handler definition document — the top level shape of a <c>.yaml</c> handler file.
+/// </summary>
 public sealed record FortitudeFile
 {
+    /// <summary>The handlers defined in this file, in document order.</summary>
     public List<HandlerDefinition> Handlers { get; init; } = new();
 }
 
+/// <summary>
+///     One handler: the requests it matches, and the response it returns for them.
+/// </summary>
 public sealed record HandlerDefinition
 {
+    /// <summary>Criteria an incoming request must satisfy. All criteria must match.</summary>
     public MatchDefinition Match { get; init; } = new();
+
+    /// <summary>The response returned when <see cref="Match" /> is satisfied.</summary>
     public ResponseDefinition Response { get; init; } = new();
 }
 
+/// <summary>
+///     Criteria an incoming request must satisfy for a handler to answer it. Every criterion
+///     present must match; omitted criteria are not checked.
+/// </summary>
 public sealed record MatchDefinition
 {
-    // HTTP
+    /// <summary>HTTP methods to match, e.g. <c>[GET, HEAD]</c>. Omit to match any method.</summary>
     public List<string>? Methods { get; init; }
+
+    /// <summary>
+    ///     Route to match, supporting ASP.NET route templates such as <c>/users/{id}</c>.
+    ///     Captured segments are available to response templates as <c>{{route.id}}</c>.
+    /// </summary>
     public string? Route { get; init; }
 
-    // Headers
+    /// <summary>Headers that must be present with these exact values. Names are case insensitive.</summary>
     public Dictionary<string, string>? Headers { get; init; }
+
+    /// <summary>Headers that must be present, whatever their value.</summary>
     public List<string>? HeaderExists { get; init; }
 
-    // Query
+    /// <summary>Query parameters that must be present with these exact values.</summary>
     public Dictionary<string, string>? Query { get; init; }
+
+    /// <summary>Query parameters that must be present, whatever their value.</summary>
     public List<string>? QueryExists { get; init; }
 
-    // Body
+    /// <summary>Conditions on the request body.</summary>
     public BodyMatchDefinition? Body { get; init; }
 }
 
+/// <summary>
+///     Conditions on a request body. When both are given, both must hold.
+/// </summary>
 public sealed record BodyMatchDefinition
 {
+    /// <summary>Text the body must contain, compared ordinally.</summary>
     public string? Contains { get; init; }
-    public string? Json { get; init; }
 
+    /// <summary>
+    ///     A JavaScript expression evaluated against the parsed JSON body, e.g.
+    ///     <c>email == "alice@example.com"</c>. Top level properties are in scope as
+    ///     variables. A body that is not a JSON object simply does not match.
+    /// </summary>
+    public string? Json { get; init; }
 }
 
 
+/// <summary>
+///     The response a handler returns.
+/// </summary>
 public sealed record ResponseDefinition
 {
+    /// <summary>HTTP status code to return.</summary>
     public int Status { get; init; }
+
+    /// <summary>Response headers. Values support <c>{{ }}</c> templating.</summary>
     public Dictionary<string, string>? Headers { get; init; }
 
+    /// <summary>The response body. Omit for an empty body.</summary>
     public ResponseBodyDefinition? Body { get; init; }
 }
 
+/// <summary>
+///     A response body, as either JSON or plain text. If both are given, JSON wins.
+/// </summary>
 public sealed record ResponseBodyDefinition
 {
+    /// <summary>
+    ///     A JSON body, served as <c>application/json</c>. Values at any depth support
+    ///     <c>{{ }}</c> templating, quoted or not.
+    /// </summary>
     public Dictionary<string, object>? Json { get; init; }
+
+    /// <summary>
+    ///     A plain text body, served as <c>text/plain</c>. Supports <c>{{ }}</c> templating.
+    /// </summary>
     public string? Text { get; init; }
 }
 

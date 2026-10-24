@@ -9,8 +9,15 @@ namespace Fortitude.Example.Api;
 
 public sealed class AspireTestFixture : IAsyncLifetime
 {
-    public DistributedApplication? _app;
+    private DistributedApplication? _app;
     private ResourceNotificationService? _notificationService;
+
+    /// <summary>
+    ///     The running distributed application. Throws if accessed before InitializeAsync,
+    ///     which saves every call site from a null check.
+    /// </summary>
+    public DistributedApplication App =>
+        _app ?? throw new InvalidOperationException("The Aspire application has not been started yet.");
 
     public async Task InitializeAsync()
     {
