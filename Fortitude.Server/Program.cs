@@ -159,6 +159,13 @@ public class Program
         app.MapHub<FortitudeHub>("/fortitude/hub");
         app.MapGet("/fortitude/health", () => "server running");
 
+        // Lets non-.NET callers drive the server: list, write and delete handler definitions,
+        // and read the traffic it has seen.
+        if (settingsForStartup.EnableAdminApi)
+            app.MapFortitudeAdminApi();
+        else
+            app.Logger.LogInformation("Admin API disabled via Settings:EnableAdminApi.");
+
         if (!app.Environment.IsDevelopment())
         {
             app.UseExceptionHandler("/Error", true);
@@ -246,6 +253,15 @@ public class Settings
     ///     otherwise — small enough that an ordinary JSON fixture would fail as a timeout.
     /// </remarks>
     public long MaxMessageSizeBytes { get; set; } = 32L * 1024 * 1024;
+
+    /// <summary>
+    ///     Serve the admin REST API at <c>/fortitude/api</c>. On by default.
+    /// </summary>
+    /// <remarks>
+    ///     The API is unauthenticated and can write handler files, so turn it off when the
+    ///     server is reachable by anything you do not trust.
+    /// </remarks>
+    public bool EnableAdminApi { get; set; } = true;
 
     /// <summary>
     ///     Serve the live monitoring and YAML editing UI at <c>/fortitude</c>. On by default.

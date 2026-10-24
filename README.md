@@ -37,6 +37,7 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 *   [handler-builder-usage](./docs/handler-builder-usage.md)
 *   [response-builder-usage](./docs/response-builder-usage.md)
 *   [yaml-handlers](./docs/yaml-handlers.md)
+*   [admin-api](./docs/admin-api.md)
 
 ### Running the Fortitude Server via Docker
 
@@ -65,6 +66,7 @@ docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config aptacode/fortitude-
 | `Settings:MaxMessageSizeBytes` | `33554432` (32 MB) | Largest request or response body that can be relayed to a connected client. Bodies travel over SignalR, which caps messages at 32 KB unless raised — too small for an ordinary JSON fixture. |
 | `Settings:ConfigDirectory` | `config` beside the executable | Where YAML handler definitions are read from. Searched recursively for `.yaml` and `.yml`. Relative paths resolve against the application directory. |
 | `Settings:HotReload` | `true` | Watch the handler directory and reload definitions when they change, without a restart. |
+| `Settings:EnableAdminApi` | `true` | Serve the admin REST API at `/fortitude/api`, which lets any language list, write and delete handler definitions and read observed traffic. Unauthenticated, like the UI. |
 | `Settings:EnableAdminUi` | `true` | Serve the live monitoring and YAML editing UI at `/fortitude`. The UI is unauthenticated and can write handler files — turn it off when the server is reachable by anything you do not trust. |
 
 `Settings:*` keys are ordinary .NET configuration, so they can be set via environment variable
@@ -323,7 +325,9 @@ Integration tests, simulating errors, e2e flows and local development.
 Yes, and future plans include a marketplace for shared API emulators.
 
 **Does it work with non-.NET services?**  
-Yes, any HTTP client can interact with the server.
+Yes. Any HTTP client can call the mock, and the [admin API](./docs/admin-api.md) lets any
+language configure handlers and read observed traffic, so the server can be driven from a
+JS, Python, Java or Go test suite without a Fortitude client library.
 
 **What are current limitations?**  
 Primary client is .NET, shared API definitions are not yet available, running the external fortitude server is required.

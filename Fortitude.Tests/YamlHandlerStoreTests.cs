@@ -189,6 +189,18 @@ public sealed class YamlHandlerStoreTests : IDisposable
     }
 
     [Theory]
+    [InlineData("..%2F..%2Fescape.yaml")]
+    [InlineData("%2e%2e%2fescape.yaml")]
+    public void APercentEncodedFileName_IsRejected(string fileName)
+    {
+        // ASP.NET leaves %2F encoded in a route value, so such a name is contained rather
+        // than traversing - but it creates an unmanageable file. Refuse it outright.
+        using var store = CreateStore();
+
+        Assert.Throws<ArgumentException>(() => store.ResolveFilePath(fileName));
+    }
+
+    [Theory]
     [InlineData("notes.txt")]
     [InlineData("appsettings.json")]
     [InlineData("script.sh")]

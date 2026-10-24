@@ -133,6 +133,18 @@ public sealed class YamlHandlerStore : IDisposable
             throw new ArgumentException(
                 $"File name must not contain a path: '{fileName}'.", nameof(fileName));
 
+        // Percent-encoding never belongs in a bare file name. ASP.NET leaves %2F encoded in
+        // a route value, so without this a name like "..%2F..%2Fx.yaml" is contained but
+        // creates an unmanageable file instead of being refused outright.
+        if (fileName.Contains('%'))
+            throw new ArgumentException(
+                $"File name must not contain percent-encoding: '{fileName}'.", nameof(fileName));
+
+        if (fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            throw new ArgumentException(
+                $"File name contains characters that are not valid in a file name: '{fileName}'.",
+                nameof(fileName));
+
         if (!FortitudeYamlLoader.YamlExtensions.Contains(
                 Path.GetExtension(fileName), StringComparer.OrdinalIgnoreCase))
             throw new ArgumentException(
