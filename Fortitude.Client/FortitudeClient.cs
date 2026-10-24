@@ -11,7 +11,14 @@ namespace Fortitude.Client;
 public class FortitudeClient : IAsyncDisposable
 {
     private readonly List<FortitudeHandler> _handlers = new();
+    private readonly object _handlersLock = new();
     private readonly ILogger<FortitudeClient> _logger;
+
+    /// <summary>
+    ///     Immutable snapshot of the handlers, swapped on every registration.
+    ///     Request dispatch reads this so it never iterates a list being mutated.
+    /// </summary>
+    private volatile FortitudeHandler[] _handlerSnapshot = [];
     private HubConnection? _connection;
     private CancellationTokenSource? _cts;
 
@@ -50,13 +57,18 @@ public class FortitudeClient : IAsyncDisposable
         if (handler == null)
             throw new ArgumentNullException(nameof(handler));
 
-        if (_handlers.Contains(handler))
+        lock (_handlersLock)
         {
-            _logger.LogInformation("[Duplicate Handler]: {HandlerName} ", handler.ToString());
-            return;
+            if (_handlers.Contains(handler))
+            {
+                _logger.LogInformation("[Duplicate Handler]: {HandlerName} ", handler.ToString());
+                return;
+            }
+
+            _handlers.Add(handler);
+            _handlerSnapshot = _handlers.ToArray();
         }
-        
-        _handlers.Add(handler);
+
         _logger.LogInformation("Registered Handler: {HandlerName}", handler.ToString());
     }
 
@@ -69,81 +81,37 @@ public class FortitudeClient : IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown if the client is already started.</exception>
     public async Task<int> StartAsync(string url, CancellationToken cancellationToken = default)
     {
-        if (_connection != null)
-            throw new InvalidOperationException("FortitudeClient is already started.");
-
         if (string.IsNullOrWhiteSpace(url))
             throw new ArgumentException("Server URL cannot be null or empty.", nameof(url));
 
         _logger.LogInformation("Connecting to Fortitude server at {Url}...", url);
 
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-        _connection = new HubConnectionBuilder()
+        var connection = new HubConnectionBuilder()
             .WithUrl(url)
             .WithAutomaticReconnect()
             .Build();
 
-        _connection.On<FortitudeRequest>("IncomingRequest", async req =>
-        {
-            try
-            {
-                await HandleIncomingAsync(req);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error processing request {RequestId}", req.RequestId);
-                if (_connection != null)
-                    await _connection.InvokeAsync("SubmitResponse",
-                        new FortitudeResponse(req.RequestId).InternalServerError(ex.Message), cancellationToken);
-            }
-        });
-
-        try
-        {
-            await _connection.StartAsync(_cts.Token);
-            _logger.LogInformation("Connected to Fortitude server.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to connect to Fortitude server at {Url}", url);
-            throw;
-        }
-
-        try
-        {
-            Port = await _connection.InvokeAsync<int>("GetAssignedPort", cancellationToken);
-
-            if (Port > 0)
-                _logger.LogInformation("This client has been assigned port {Port}", Port);
-            else
-                _logger.LogWarning("This client has NOT been assigned a port.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to query assigned port from server.");
-        }
-
-        return Port;
+        return await StartAsync(connection, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    ///     Starts the Fortitude client and connects to the specified server URL.
+    ///     Starts the Fortitude client using an already configured <see cref="HubConnection" />.
     /// </summary>
-    /// <param name="url">The URL of the Fortitude server.</param>
+    /// <param name="connection">The hub connection to use.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <returns>The port assigned by the server, or -1 if none was assigned.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the client is already started.</exception>
     public async Task<int> StartAsync(HubConnection connection, CancellationToken cancellationToken = default)
     {
+        if (connection == null)
+            throw new ArgumentNullException(nameof(connection));
+
         if (_connection != null)
             throw new InvalidOperationException("FortitudeClient is already started.");
 
-        _connection = connection;
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-        _connection.On<FortitudeRequest>("IncomingRequest", async req =>
+        connection.On<FortitudeRequest>("IncomingRequest", async req =>
         {
             try
             {
@@ -152,31 +120,39 @@ public class FortitudeClient : IAsyncDisposable
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing request {RequestId}", req.RequestId);
-                if (_connection != null)
-                    await _connection.InvokeAsync("SubmitResponse",
-                        new FortitudeResponse(req.RequestId).InternalServerError(ex.Message), cancellationToken);
+
+                await connection.InvokeAsync("SubmitResponse",
+                    new FortitudeResponse(req.RequestId).InternalServerError(ex.Message), cancellationToken);
             }
         });
 
         try
         {
-            await _connection.StartAsync(_cts.Token);
+            await connection.StartAsync(cts.Token).ConfigureAwait(false);
             _logger.LogInformation("Connected to Fortitude server.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to connect to Fortitude server");
+            // Leave the client in its pre-start state so the caller can retry; otherwise the
+            // next attempt fails with "already started" instead of reporting the real problem.
+            cts.Dispose();
+            _logger.LogError(ex, "Failed to connect to Fortitude server.");
             throw;
         }
 
+        _connection = connection;
+        _cts = cts;
+
         try
         {
-            Port = await _connection.InvokeAsync<int>("GetAssignedPort", cancellationToken);
+            Port = await connection.InvokeAsync<int>("GetAssignedPort", cancellationToken).ConfigureAwait(false);
 
             if (Port > 0)
                 _logger.LogInformation("This client has been assigned port {Port}", Port);
             else
-                _logger.LogWarning("This client has NOT been assigned a port.");
+                _logger.LogWarning(
+                    "This client has NOT been assigned a port and will receive unrouted traffic. "
+                    + "Start the server with PORTS=<range> for per-client isolation.");
         }
         catch (Exception ex)
         {
@@ -230,9 +206,11 @@ public class FortitudeClient : IAsyncDisposable
         if (_connection == null)
             return;
 
-        for (var i = _handlers.Count - 1; i >= 0; i--)
+        var handlers = _handlerSnapshot;
+
+        for (var i = handlers.Length - 1; i >= 0; i--)
         {
-            var handler = _handlers[i];
+            var handler = handlers[i];
             if (!handler.Matches(request)) continue;
 
             var response = await handler.HandleRequestAsync(request);
@@ -263,9 +241,11 @@ public class FortitudeClient : IAsyncDisposable
 
         var req = await FortitudeRequest.FromHttpRequestMessage(request, requestId).ConfigureAwait(false);
 
-        for (var i = _handlers.Count - 1; i >= 0; i--)
+        var handlers = _handlerSnapshot;
+
+        for (var i = handlers.Length - 1; i >= 0; i--)
         {
-            var handler = _handlers[i];
+            var handler = handlers[i];
             if (!handler.Matches(req)) continue;
 
             var response = await handler.HandleRequestAsync(req);

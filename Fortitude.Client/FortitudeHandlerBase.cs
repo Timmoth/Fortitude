@@ -21,7 +21,7 @@ public class FortitudeHandler
     private readonly string? _route;
     private readonly RouteTemplate? _routeTemplate;
 
-    private readonly List<TaskCompletionSource<FortitudeRequest?>> _waiters = new();
+    private readonly List<Waiter> _waiters = new();
     private readonly object _waitersLock = new();
     private readonly Func<FortitudeRequest, bool>? _requestPredicate;
 
@@ -150,32 +150,97 @@ public class FortitudeHandler
         if (existing != null)
             return Task.FromResult(existing)!;
 
-        var tcs = new TaskCompletionSource<FortitudeRequest?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        var cts = new CancellationTokenSource(timeoutMs);
-        cts.Token.Register(() => tcs.TrySetResult(null));
+        var waiter = new Waiter(predicate);
 
         lock (_waitersLock)
         {
-            _waiters.Add(tcs);
+            _waiters.Add(waiter);
         }
 
-        return tcs.Task;
+        waiter.StartTimeout(timeoutMs, () => Remove(waiter));
+
+        return waiter.Task;
     }
 
     /// <summary>
     ///     Notifies waiting tasks of a newly received request.
     /// </summary>
+    /// <remarks>
+    ///     Only waiters whose own predicate accepts the request are completed. The request has
+    ///     already satisfied this handler's match criteria by the time it gets here, so
+    ///     re-testing those would ignore what the caller actually asked to wait for.
+    /// </remarks>
     private void NotifyWaiters(FortitudeRequest req)
+    {
+        List<Waiter> satisfied;
+
+        lock (_waitersLock)
+        {
+            satisfied = _waiters.Where(w => w.Accepts(req)).ToList();
+
+            foreach (var waiter in satisfied)
+                _waiters.Remove(waiter);
+        }
+
+        // Complete outside the lock: continuations may run inline and call back in.
+        foreach (var waiter in satisfied)
+            waiter.Complete(req);
+    }
+
+    private void Remove(Waiter waiter)
     {
         lock (_waitersLock)
         {
-            foreach (var waiter in _waiters.ToList())
-                if (!waiter.Task.IsCompleted && Matches(req))
-                {
-                    waiter.TrySetResult(req);
-                    _waiters.Remove(waiter);
-                }
+            _waiters.Remove(waiter);
+        }
+    }
+
+    /// <summary>
+    ///     One pending <see cref="WaitForRequestAsync" /> call: the task to complete, the
+    ///     caller's filter, and the timeout that abandons it.
+    /// </summary>
+    private sealed class Waiter(Func<FortitudeRequest, bool>? predicate)
+    {
+        private readonly TaskCompletionSource<FortitudeRequest?> _tcs =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private CancellationTokenSource? _cts;
+        private CancellationTokenRegistration _registration;
+
+        public Task<FortitudeRequest?> Task => _tcs.Task;
+
+        public bool Accepts(FortitudeRequest req) =>
+            !_tcs.Task.IsCompleted && (predicate?.Invoke(req) ?? true);
+
+        public void StartTimeout(int timeoutMs, Action onTimeout)
+        {
+            _cts = new CancellationTokenSource(timeoutMs);
+
+            _registration = _cts.Token.Register(() =>
+            {
+                if (_tcs.TrySetResult(null))
+                    onTimeout();
+
+                Cleanup();
+            });
+        }
+
+        public void Complete(FortitudeRequest req)
+        {
+            _tcs.TrySetResult(req);
+            Cleanup();
+        }
+
+        /// <summary>
+        ///     Releases the timer backing the timeout. Without this every wait leaks a
+        ///     <see cref="CancellationTokenSource" /> and its registration for the life of
+        ///     the handler.
+        /// </summary>
+        private void Cleanup()
+        {
+            _registration.Dispose();
+            _cts?.Dispose();
+            _cts = null;
         }
     }
 
