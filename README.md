@@ -39,6 +39,7 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 *   [yaml-handlers](./docs/yaml-handlers.md)
 *   [admin-api](./docs/admin-api.md)
 *   [openapi](./docs/openapi.md)
+*   [record-and-replay](./docs/record-and-replay.md)
 
 ### Running the Fortitude Server via Docker
 

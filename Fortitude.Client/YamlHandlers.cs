@@ -166,6 +166,18 @@ public static class FortitudeYamlLoader
             case null:
                 return null;
 
+            case YamlScalar scalar:
+            {
+                var rendered = RenderTemplate(scalar.Value, ctx);
+
+                // A quoted literal is the author asking for a string. A quoted template is
+                // different: quotes are mandatory there in YAML, so the rendered result is
+                // still typed.
+                return scalar.IsQuoted && !ContainsTemplate(scalar.Value)
+                    ? rendered
+                    : CoerceScalar(rendered);
+            }
+
             case string s:
                 return CoerceScalar(RenderTemplate(s, ctx));
 
@@ -173,7 +185,7 @@ public static class FortitudeYamlLoader
                 return TryReadBareTemplate(objectKeyed, out var bare)
                     ? CoerceScalar(RenderTemplate(bare, ctx))
                     : objectKeyed.ToDictionary(
-                        kvp => kvp.Key?.ToString() ?? string.Empty,
+                        kvp => KeyText(kvp.Key),
                         kvp => RenderJsonTemplates(kvp.Value, ctx));
 
             case IDictionary<string, object?> stringKeyed:
@@ -210,7 +222,15 @@ public static class FortitudeYamlLoader
 
         var inner = innerMap.First();
         if (inner.Value != null) return false;
-        if (inner.Key is not string expression) return false;
+
+        var expression = inner.Key switch
+        {
+            string text => text,
+            YamlScalar scalar => scalar.Value,
+            _ => null
+        };
+
+        if (expression == null) return false;
 
         template = "{{" + expression + "}}";
         return true;
@@ -246,6 +266,20 @@ public static class FortitudeYamlLoader
 
         return value;
     }
+
+    /// <summary>
+    ///     Renders a mapping key as text. Keys arrive as <see cref="YamlScalar" /> like any
+    ///     other untyped scalar, so they need unwrapping before use as JSON property names.
+    /// </summary>
+    private static string KeyText(object? key) => key switch
+    {
+        YamlScalar scalar => scalar.Value,
+        null => string.Empty,
+        _ => key.ToString() ?? string.Empty
+    };
+
+    /// <summary>Whether a scalar carries a <c>{{ }}</c> placeholder.</summary>
+    private static bool ContainsTemplate(string value) => value.Contains("{{", StringComparison.Ordinal);
 
     /// <summary>"01234" yes, "0" no, "0.5" no.</summary>
     private static bool HasRedundantLeadingZero(string value)
@@ -409,12 +443,7 @@ public static class FortitudeYamlLoader
     public static FortitudeHandler FromYamlSingle(
         string yaml, string? baseDirectory = null, FortitudeScenarios? scenarios = null)
     {
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
-
-        var handler = deserializer.Deserialize<HandlerDefinition>(yaml);
+        var handler = YamlDeserializer.Create().Deserialize<HandlerDefinition>(yaml);
         return ToHandler(handler, baseDirectory, scenarios);
     }
     
@@ -425,13 +454,8 @@ public static class FortitudeYamlLoader
     public static IEnumerable<FortitudeHandler> FromYamlMulti(
         string yaml, string? baseDirectory = null, FortitudeScenarios? scenarios = null)
     {
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
-
         // An empty or comment-only document deserializes to null.
-        var handlerDefs = deserializer.Deserialize<FortitudeFile>(yaml)?.Handlers;
+        var handlerDefs = YamlDeserializer.Create().Deserialize<FortitudeFile>(yaml)?.Handlers;
         if (handlerDefs == null)
             yield break;
 

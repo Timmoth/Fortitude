@@ -247,20 +247,28 @@ handler.
 
 ## How values are typed
 
-YAML gives Fortitude every scalar as text, so the JSON type is inferred when the response is
-written:
+Quoting decides the JSON type: a quoted scalar is text, an unquoted one is inferred.
 
 | YAML | JSON |
 |---|---|
 | `count: 3` | `3` |
+| `count: "3"` | `"3"` |
 | `flag: true` | `true` |
+| `flag: "true"` | `"true"` |
 | `name: Alice` | `"Alice"` |
+| `postcode: 01234` | `"01234"` |
 | `userId: "{{route.id}}"` against `/users/42` | `42` |
-| `postcode: "01234"` | `"01234"` |
 
-Values with a redundant leading zero stay strings, because those are almost always identifiers,
-postcodes or phone numbers that would be corrupted by being read as numbers. A template that
-resolves to nothing renders as an empty string.
+Two cases are worth calling out:
+
+- **A redundant leading zero stays a string even unquoted.** `01234` is almost always a
+  postcode, account number or identifier that would be corrupted by being read as a number.
+- **A quoted template is still typed.** YAML requires quotes around a value starting with `{`,
+  so quoting there is forced rather than a choice, and the rendered result is typed as if it
+  had been written plainly. If you need a template result kept as text, wrap it:
+  `id: "id-{{route.id}}"`.
+
+A template that resolves to nothing renders as an empty string.
 
 ## Where definitions live
 

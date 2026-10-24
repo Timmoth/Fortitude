@@ -19,8 +19,13 @@ public static class FortitudeYamlGenerator
     /// <summary>Headers that vary per run and should never be baked into a handler.</summary>
     private static readonly string[] VolatileHeaders = ["authorization", "cookie", "content-length", "host"];
 
+    /// <summary>
+    ///     Quotes strings that would otherwise read back as another type, so a JSON string of
+    ///     "7" survives a round trip instead of replaying as the number 7.
+    /// </summary>
     private static ISerializer Serializer => new SerializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .WithQuotingNecessaryStrings()
         .Build();
 
     /// <summary>
@@ -140,6 +145,77 @@ public static class FortitudeYamlGenerator
         document.Append(Indent(response, "    ", "    "));
 
         return document.ToString();
+    }
+
+    /// <summary>
+    ///     Renders an observed request and the response it received as a handler definition.
+    /// </summary>
+    /// <remarks>
+    ///     The match is deliberately narrow - method, route and query - so a recording replays
+    ///     the call it captured rather than standing in for a whole family of them. Request
+    ///     headers are not matched on: they vary per run far more than they distinguish calls.
+    /// </remarks>
+    public static string ExchangeToHandlerYaml(FortitudeRequest request, FortitudeResponse response)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(response);
+
+        var match = new Dictionary<string, object>
+        {
+            ["methods"] = new List<string> { request.Method.ToUpperInvariant() },
+            ["route"] = request.Route
+        };
+
+        var query = request.Query
+            .Where(q => q.Value.Length > 0)
+            .ToDictionary(q => q.Key, q => q.Value[0]);
+
+        if (query.Count > 0)
+            match["query"] = query;
+
+        var responseNode = new Dictionary<string, object?> { ["status"] = response.Status };
+
+        var headers = response.Headers
+            .Where(h => !VolatileHeaders.Contains(h.Key.ToLowerInvariant()))
+            .ToDictionary(h => h.Key, h => h.Value);
+
+        if (headers.Count > 0)
+            responseNode["headers"] = headers;
+
+        if (response.Body is { Length: > 0 })
+            responseNode["body"] = BodyNode(response);
+
+        var document = new StringBuilder();
+        document.AppendLine("handlers:");
+        document.Append(Indent(
+            Serializer.Serialize(new Dictionary<string, object> { ["match"] = match }), "  - ", "    "));
+        document.Append(Indent(
+            Serializer.Serialize(new Dictionary<string, object> { ["response"] = responseNode }), "    ", "    "));
+
+        return document.ToString();
+    }
+
+    /// <summary>
+    ///     Renders a recorded body: JSON as structured YAML so it stays editable, anything
+    ///     else as text.
+    /// </summary>
+    private static Dictionary<string, object?> BodyNode(FortitudeResponse response)
+    {
+        var text = Encoding.UTF8.GetString(response.Body!);
+
+        if (response.ContentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+            try
+            {
+                using var document = JsonDocument.Parse(text);
+                return new Dictionary<string, object?> { ["json"] = ToPlainObject(document.RootElement) };
+            }
+            catch (JsonException)
+            {
+                // Declared as JSON but is not; fall through and keep it as text rather than
+                // losing the recording.
+            }
+
+        return new Dictionary<string, object?> { ["text"] = text };
     }
 
     /// <summary>

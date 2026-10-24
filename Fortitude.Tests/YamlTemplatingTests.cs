@@ -153,9 +153,10 @@ public class YamlTemplatingTests
     }
 
     [Fact]
-    public async Task ValuesWithALeadingZero_StayStrings()
+    public async Task QuotedValues_StayStrings()
     {
-        // A postcode or account number must not be mangled into a number.
+        // Quoting is the author saying "this is text". A postcode or account number must not
+        // be mangled into a number, and neither must anything else deliberately quoted.
         var body = await Render("""
                                 match:
                                   route: /thing
@@ -165,11 +166,39 @@ public class YamlTemplatingTests
                                     json:
                                       postcode: "01234"
                                       zero: "0"
-                                      fraction: "0.5"
+                                      version: "3"
+                                      flag: "true"
                                 """, "/thing");
 
         Assert.Contains("\"postcode\":\"01234\"", body);
+        Assert.Contains("\"zero\":\"0\"", body);
+        Assert.Contains("\"version\":\"3\"", body);
+        Assert.Contains("\"flag\":\"true\"", body);
+    }
+
+    [Fact]
+    public async Task UnquotedValues_AreTyped()
+    {
+        var body = await Render("""
+                                match:
+                                  route: /thing
+                                response:
+                                  status: 200
+                                  body:
+                                    json:
+                                      zero: 0
+                                      version: 3
+                                      fraction: 0.5
+                                      flag: true
+                                      postcode: 01234
+                                """, "/thing");
+
         Assert.Contains("\"zero\":0", body);
+        Assert.Contains("\"version\":3", body);
         Assert.Contains("\"fraction\":0.5", body);
+        Assert.Contains("\"flag\":true", body);
+
+        // Even unquoted, a redundant leading zero means an identifier, not a number.
+        Assert.Contains("\"postcode\":\"01234\"", body);
     }
 }
