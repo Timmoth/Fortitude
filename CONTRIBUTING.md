@@ -58,7 +58,11 @@ author needs at runtime belongs in the client.
    API needs XML documentation - the package ships a docs file.
 4. **Update the docs.** Behaviour that is not written down in `docs/` or the README does not
    really exist. A new matcher or response option should appear in the relevant guide.
-5. **Run the full suite** before opening the pull request.
+5. **Give any new code sample a test.** `DocumentedExampleTests` holds executable versions of
+   the samples in the README and guides. Nothing else compiles them, so without one a sample
+   quietly stops working the next time the API moves - which is exactly how the README's YAML
+   example came to return a 500.
+6. **Run the full suite** before opening the pull request.
 
 ### Writing tests
 

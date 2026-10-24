@@ -481,5 +481,23 @@ Much like its namesake, Fortitude simulates service behavior - a controlled dece
   <img src="./docs/decoy-tank.jpg" width="480" alt="Decoy Tank"/>
 </p>
 
+## Roadmap
+
+Nothing here is committed to, but it is roughly where things are headed:
+
+- **Clients for other languages.** The [admin API](./docs/admin-api.md) means a JS/TS, Python
+  or Java client no longer needs to speak SignalR - it can configure handlers over plain HTTP.
+- **Protocols beyond HTTP.** gRPC, WebSocket and GraphQL all come up. None are supported today.
+- **Shared API emulators.** A way to publish and reuse a mock of a well-known third-party API,
+  rather than everyone writing the same Stripe or GitHub handlers.
+- **Request-side recording.** Proxy recordings currently capture responses; matching on the
+  recorded request body would make replays stricter.
+
 ## Interested in getting involved?
-We're looking for collaborators to help extend the core server and or build lightweight clients (JS/TS, Python, Java, etc.) — if you’re interested, feel free to reach out or open an issue!
+
+Contributions are welcome - see [CONTRIBUTING.md](./CONTRIBUTING.md) for how the projects fit
+together and how to run the tests.
+
+Building a client for another language is the most useful thing anyone could pick up, and the
+[admin API](./docs/admin-api.md) is the way in. Open an issue first if you are thinking about
+one; it would be good to agree the shape together.
