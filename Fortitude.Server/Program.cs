@@ -8,7 +8,22 @@ namespace Fortitude.Server;
 
 public class Program
 {
+    /// <summary>Entry point: builds the server and runs it until shutdown.</summary>
     public static void Main(string[] args)
+    {
+        BuildApp(args).Run();
+    }
+
+    /// <summary>
+    ///     Builds the Fortitude server without starting it.
+    /// </summary>
+    /// <param name="args">Command line arguments.</param>
+    /// <param name="ports">
+    ///     Ports to bind, overriding the PORT/PORTS environment variables. Pass 0 for an
+    ///     ephemeral port. Intended for tests that need the real Kestrel pipeline on real
+    ///     sockets rather than an in-memory TestServer.
+    /// </param>
+    public static WebApplication BuildApp(string[] args, IReadOnlyCollection<int>? ports = null)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -42,7 +57,9 @@ public class Program
 
 
         List<int> requestedPorts;
-        if (!string.IsNullOrWhiteSpace(portsEnv))
+        if (ports != null)
+            requestedPorts = ports.ToList();
+        else if (!string.IsNullOrWhiteSpace(portsEnv))
             requestedPorts = ParsePorts(portsEnv).Distinct().OrderBy(p => p).ToList();
         else if (!string.IsNullOrWhiteSpace(singlePortEnv) && int.TryParse(singlePortEnv, out var single) &&
                  single is > 0 and <= 65535)
@@ -158,7 +175,7 @@ public class Program
 
         app.MapBlazorHub("/fortitude/_blazor");
 
-        app.Run();
+        return app;
     }
 }
 
