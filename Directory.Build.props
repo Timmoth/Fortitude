@@ -1,0 +1,17 @@
+<Project>
+
+    <!--
+      Shared build settings for every project in the solution.
+
+      NuGet auditing is enabled for direct *and* transitive packages. Low and
+      moderate advisories surface as warnings; high and critical ones fail the
+      build so a vulnerable dependency can't be merged unnoticed.
+    -->
+    <PropertyGroup>
+        <NuGetAudit>true</NuGetAudit>
+        <NuGetAuditMode>all</NuGetAuditMode>
+        <NuGetAuditLevel>low</NuGetAuditLevel>
+        <WarningsAsErrors>$(WarningsAsErrors);NU1903;NU1904</WarningsAsErrors>
+    </PropertyGroup>
+
+</Project>
