@@ -19,6 +19,9 @@ public class FortitudeClient : IAsyncDisposable
     ///     Request dispatch reads this so it never iterates a list being mutated.
     /// </summary>
     private volatile FortitudeHandler[] _handlerSnapshot = [];
+
+    /// <summary>Requests that no registered handler matched.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentQueue<FortitudeRequest> _unmatched = new();
     private HubConnection? _connection;
     private CancellationTokenSource? _cts;
 
@@ -30,6 +33,63 @@ public class FortitudeClient : IAsyncDisposable
     public FortitudeClient(ILogger<FortitudeClient> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    ///     Requests that arrived but matched no handler, and were answered with
+    ///     501 Not Implemented.
+    /// </summary>
+    /// <remarks>
+    ///     An unmatched request usually means the system under test called something the test
+    ///     did not set up, or that a matcher is subtly wrong. Both are easy to miss, because
+    ///     a 501 often just looks like the dependency misbehaving. See
+    ///     <see cref="VerifyNoUnmatchedRequests" />.
+    /// </remarks>
+    public IReadOnlyList<FortitudeRequest> UnmatchedRequests => _unmatched.ToArray();
+
+    /// <summary>
+    ///     Throws if any request went unmatched, listing what arrived and what was registered.
+    /// </summary>
+    /// <exception cref="FortitudeVerificationException">Thrown when there are unmatched requests.</exception>
+    public void VerifyNoUnmatchedRequests()
+    {
+        var unmatched = UnmatchedRequests;
+
+        if (unmatched.Count == 0)
+            return;
+
+        var message = new System.Text.StringBuilder();
+
+        message.AppendLine(unmatched.Count == 1
+            ? "1 request was not matched by any handler:"
+            : $"{unmatched.Count} requests were not matched by any handler:");
+
+        foreach (var request in unmatched.Take(10))
+            message.AppendLine($"    {request.Method} {request.Route}{request.RawQuery}");
+
+        if (unmatched.Count > 10)
+            message.AppendLine($"    ... and {unmatched.Count - 10} more");
+
+        var handlers = _handlerSnapshot;
+
+        if (handlers.Length == 0)
+        {
+            message.AppendLine("  No handlers were registered.");
+        }
+        else
+        {
+            message.AppendLine("  Registered handlers:");
+            foreach (var handler in handlers)
+                message.AppendLine($"    {handler}{(handler.IsExhausted ? "  (exhausted)" : string.Empty)}");
+        }
+
+        throw new FortitudeVerificationException(message.ToString().TrimEnd());
+    }
+
+    /// <summary>Forgets any unmatched requests recorded so far.</summary>
+    public void ClearUnmatchedRequests()
+    {
+        _unmatched.Clear();
     }
 
     /// <summary>
@@ -219,6 +279,8 @@ public class FortitudeClient : IAsyncDisposable
             return;
         }
 
+        _unmatched.Enqueue(request);
+
         var defaultResponse = new FortitudeResponse(request.RequestId).MethodNotImplemented();
         _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
         _logger.LogWarning("[Ignored] {defaultResponse}.", defaultResponse);
@@ -249,6 +311,8 @@ public class FortitudeClient : IAsyncDisposable
 
             return response.ToHttpResponseMessage();
         }
+
+        _unmatched.Enqueue(req);
 
         var defaultResponse = new FortitudeResponse(requestId).MethodNotImplemented();
         _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());

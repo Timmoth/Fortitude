@@ -101,3 +101,64 @@ Assert.Single(handler.ReceivedRequests);
 var receivedRequest = handler.ReceivedRequests.First();
 Assert.Equal("/users", receivedRequest.Path);
 ```
+
+## Asserting on what the mock received
+
+Every handler records the requests it answered, so the simplest assertion is on the list
+itself:
+
+```csharp
+Assert.Single(handler.ReceivedRequests);
+```
+
+The verification helpers do the same job but fail with a message that explains itself, which
+matters when the only thing you have is a CI log:
+
+```csharp
+handler.ShouldHaveReceivedOnce();
+handler.ShouldHaveReceived(3);
+handler.ShouldHaveReceivedAtLeast(1);
+handler.ShouldHaveReceivedAtMost(5);
+handler.ShouldNeverHaveBeenCalled();
+```
+
+A failure prints the handler and the traffic it actually saw:
+
+```
+Expected 3 requests, but saw 1 request.
+  Handler: [GET] /users
+  It received:
+    GET /users
+```
+
+All of them take an optional predicate to narrow what is counted:
+
+```csharp
+handler.ShouldHaveReceived(2, r => r.Method == "POST");
+```
+
+### Catching requests you did not set up
+
+A request that matches no handler is answered with `501 Not Implemented`. That is easy to
+miss - it tends to look like the dependency misbehaving rather than a gap in the test. The
+client keeps them:
+
+```csharp
+fortitude.VerifyNoUnmatchedRequests();
+```
+
+which fails with both halves of the mismatch:
+
+```
+1 request was not matched by any handler:
+    GET /accounts?id=7
+  Registered handlers:
+    [GET] /users
+    [POST] /orders  (exhausted)
+```
+
+Handlers that have used up a `Times(n)` allowance are marked, since a handler that looks like
+it should have matched is the most confusing version of this failure.
+
+`UnmatchedRequests` exposes the same list if you would rather inspect it, and
+`ClearUnmatchedRequests()` resets it between phases of a longer test.
