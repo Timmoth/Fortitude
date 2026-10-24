@@ -3,6 +3,7 @@ using Fortitude.Client;
 using Fortitude.Server.Components;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.StaticWebAssets;
+using Microsoft.Extensions.Options;
 
 namespace Fortitude.Server;
 
@@ -67,16 +68,6 @@ public class Program
         else
             requestedPorts = [];
         
-        var configDir = Path.Combine(AppContext.BaseDirectory, "config"); 
-     
-        var handlers = new List<FortitudeHandler>();
-        foreach (var handler in FortitudeYamlLoader.LoadHandlers(configDir))
-        {
-            handlers.AddRange(handler);
-        }
-        
-        builder.Services.AddSingleton<HandlerSet>(h => new HandlerSet(h.GetRequiredService<ILogger<HandlerSet>>(), handlers));
-
 // If ports were requested, configure Kestrel to listen on each of them
         if (requestedPorts.Count > 0)
             builder.WebHost.ConfigureKestrel(options =>
@@ -105,6 +96,7 @@ public class Program
                 Console.WriteLine($"[Fortitude] Bound to ports: {string.Join(',', bound)}");
             });
 
+        builder.Services.AddSingleton<YamlHandlerStore>();
         builder.Services.AddSingleton<PendingRequestStore>();
         builder.Services.AddSingleton<PortReservationService>();
 
@@ -164,16 +156,27 @@ public class Program
             app.UseHsts();
         }
 
-        app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+        // The admin UI is unauthenticated and can write handler files, so it is switchable.
+        var settings = app.Services.GetRequiredService<IOptions<Settings>>().Value;
 
-        app.UseStaticFiles("/fortitude");
+        if (settings.EnableAdminUi)
+        {
+            app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 
-        app.UseAntiforgery();
+            app.UseStaticFiles("/fortitude");
 
-        app.MapRazorComponents<App>()
-            .AddInteractiveServerRenderMode();
+            app.UseAntiforgery();
 
-        app.MapBlazorHub("/fortitude/_blazor");
+            app.MapRazorComponents<App>()
+                .AddInteractiveServerRenderMode();
+
+            app.MapBlazorHub("/fortitude/_blazor");
+        }
+        else
+        {
+            app.Logger.LogInformation(
+                "Admin UI disabled via Settings:EnableAdminUi; /fortitude serves the hub and health endpoint only.");
+        }
 
         return app;
     }
@@ -210,6 +213,29 @@ public class Settings
 
     /// <summary>The response timeout applied when none is configured.</summary>
     public const int DefaultResponseTimeoutSeconds = 5;
+
+    /// <summary>
+    ///     Directory to read YAML handler definitions from, searched recursively for
+    ///     <c>.yaml</c> and <c>.yml</c> files. Relative paths resolve against the application
+    ///     directory. Defaults to <c>config</c> beside the executable, which is the path the
+    ///     Docker image expects a volume to be mounted at.
+    /// </summary>
+    public string? ConfigDirectory { get; set; }
+
+    /// <summary>
+    ///     Watch <see cref="ConfigDirectory" /> and reload handler definitions when they change.
+    ///     On by default.
+    /// </summary>
+    public bool HotReload { get; set; } = true;
+
+    /// <summary>
+    ///     Serve the live monitoring and YAML editing UI at <c>/fortitude</c>. On by default.
+    /// </summary>
+    /// <remarks>
+    ///     The UI is unauthenticated and can write handler files, so turn it off when the
+    ///     server is reachable by anything you do not trust.
+    /// </remarks>
+    public bool EnableAdminUi { get; set; } = true;
 
     /// <summary>
     ///     <see cref="ResponseTimeoutSeconds" /> as a <see cref="TimeSpan" />, falling back to

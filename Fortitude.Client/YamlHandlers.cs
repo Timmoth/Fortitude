@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -91,49 +92,179 @@ public static class FortitudeYamlLoader
         });
     }
     
+    /// <summary>
+    ///     Walks a deserialized response body, rendering templates and normalising the result
+    ///     into shapes <see cref="JsonSerializer" /> can emit.
+    /// </summary>
+    /// <remarks>
+    ///     YamlDotNet produces <c>Dictionary&lt;object, object&gt;</c> for nested mappings while
+    ///     the top level is typed as <c>Dictionary&lt;string, object&gt;</c>, so both have to be
+    ///     handled or templates below the first level silently fail to render.
+    /// </remarks>
     private static object? RenderJsonTemplates(object? value, TemplateContext ctx)
     {
-        return value switch
+        switch (value)
         {
-            string s => RenderTemplate(s, ctx),
+            case null:
+                return null;
 
-            Dictionary<string, object> d => d.ToDictionary(
-                kvp => kvp.Key,
-                kvp => RenderJsonTemplates(kvp.Value, ctx)
-            ),
+            case string s:
+                return CoerceScalar(RenderTemplate(s, ctx));
 
-            List<object> l => l.Select(v => RenderJsonTemplates(v, ctx)).ToList(),
+            case IDictionary<object, object?> objectKeyed:
+                return TryReadBareTemplate(objectKeyed, out var bare)
+                    ? CoerceScalar(RenderTemplate(bare, ctx))
+                    : objectKeyed.ToDictionary(
+                        kvp => kvp.Key?.ToString() ?? string.Empty,
+                        kvp => RenderJsonTemplates(kvp.Value, ctx));
 
-            _ => value
-        };
-    }
-    
-    private static IEnumerable<string> LoadYamlFiles(string dir)
-    {
-        if (!Directory.Exists(dir)) yield break;
+            case IDictionary<string, object?> stringKeyed:
+                return stringKeyed.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => RenderJsonTemplates(kvp.Value, ctx));
 
-        foreach (var file in Directory.EnumerateFiles(dir, "*.yaml", SearchOption.TopDirectoryOnly))
-        {
-            var text = File.ReadAllText(file, Encoding.UTF8);
-            yield return text;
+            case IEnumerable<object?> sequence:
+                return sequence.Select(v => RenderJsonTemplates(v, ctx)).ToList();
+
+            default:
+                return value;
         }
     }
-    
-    public static IEnumerable<FortitudeHandler> LoadHandlers(string dir)
+
+    /// <summary>
+    ///     Recognises a template written without quotes, e.g. <c>id: {{route.id}}</c>.
+    /// </summary>
+    /// <remarks>
+    ///     YAML reads <c>{{route.id}}</c> as a flow mapping containing a flow mapping, not as
+    ///     text: a single-entry map whose value is null and whose key is itself a single-entry
+    ///     map with a null value. Nothing a real response body would contain looks like that,
+    ///     so it can be safely reconstructed back into the template the author intended.
+    /// </remarks>
+    private static bool TryReadBareTemplate(IDictionary<object, object?> map, out string template)
     {
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
-        
-        foreach (var yaml in LoadYamlFiles(dir))
+        template = string.Empty;
+
+        if (map.Count != 1) return false;
+
+        var outer = map.First();
+        if (outer.Value != null) return false;
+        if (outer.Key is not IDictionary<object, object?> innerMap || innerMap.Count != 1) return false;
+
+        var inner = innerMap.First();
+        if (inner.Value != null) return false;
+        if (inner.Key is not string expression) return false;
+
+        template = "{{" + expression + "}}";
+        return true;
+    }
+
+    /// <summary>
+    ///     Converts a scalar to the JSON type it reads as, so that <c>"{{route.id}}"</c>
+    ///     against <c>/users/42</c> emits <c>42</c> rather than <c>"42"</c>, and a literal
+    ///     <c>flag: true</c> emits a boolean rather than the string <c>"true"</c>.
+    /// </summary>
+    /// <remarks>
+    ///     YamlDotNet hands back every untyped scalar as a string, so the author's intent has
+    ///     to be inferred here. Values with a redundant leading zero (<c>01234</c>) are left as
+    ///     strings: those are nearly always identifiers, postcodes or phone numbers that would
+    ///     be corrupted by being read as a number.
+    /// </remarks>
+    private static object CoerceScalar(string value)
+    {
+        if (value.Length == 0)
+            return value;
+
+        if (bool.TryParse(value, out var b))
+            return b;
+
+        if (HasRedundantLeadingZero(value))
+            return value;
+
+        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i))
+            return i;
+
+        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var d))
+            return d;
+
+        return value;
+    }
+
+    /// <summary>"01234" yes, "0" no, "0.5" no.</summary>
+    private static bool HasRedundantLeadingZero(string value)
+    {
+        var digits = value.StartsWith('-') || value.StartsWith('+') ? value[1..] : value;
+
+        return digits.Length > 1 && digits[0] == '0' && digits[1] != '.';
+    }
+    
+    /// <summary>File extensions recognised as handler definitions.</summary>
+    public static readonly string[] YamlExtensions = [".yaml", ".yml"];
+
+    /// <summary>
+    ///     Enumerates handler definition files under <paramref name="dir" />, recursively.
+    /// </summary>
+    /// <remarks>
+    ///     Both <c>.yaml</c> and <c>.yml</c> are recognised. Results are ordered by path so the
+    ///     last-match-wins handler precedence is deterministic across runs and platforms.
+    /// </remarks>
+    public static IEnumerable<string> EnumerateYamlFiles(string dir)
+    {
+        if (!Directory.Exists(dir)) return [];
+
+        return Directory
+            .EnumerateFiles(dir, "*.*", SearchOption.AllDirectories)
+            .Where(f => YamlExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+            .OrderBy(f => f, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    ///     Loads every handler file under <paramref name="dir" />, reporting per-file outcomes.
+    /// </summary>
+    /// <remarks>
+    ///     A file that fails to parse yields a result carrying its <see cref="YamlHandlerFile.Error" />
+    ///     rather than throwing, so one malformed file cannot stop the server from starting or
+    ///     hide the handlers defined in its siblings.
+    /// </remarks>
+    public static IReadOnlyList<YamlHandlerFile> LoadHandlerFiles(string dir)
+    {
+        var results = new List<YamlHandlerFile>();
+
+        foreach (var file in EnumerateYamlFiles(dir))
         {
-            var handlerDefs = deserializer.Deserialize<FortitudeFile>(yaml).Handlers;
-            foreach (var handlerDef in handlerDefs)
+            try
             {
-                yield return ToHandler(handlerDef);
+                var text = File.ReadAllText(file, Encoding.UTF8);
+                var handlers = FromYamlMulti(text).ToList();
+                results.Add(new YamlHandlerFile(file, handlers, null));
+            }
+            catch (Exception ex)
+            {
+                results.Add(new YamlHandlerFile(file, [], Describe(ex)));
             }
         }
+
+        return results;
+    }
+
+    /// <summary>
+    ///     Loads every handler defined under <paramref name="dir" />, skipping files that fail
+    ///     to parse. Use <see cref="LoadHandlerFiles" /> when you need to surface the failures.
+    /// </summary>
+    public static IEnumerable<FortitudeHandler> LoadHandlers(string dir)
+    {
+        return LoadHandlerFiles(dir).SelectMany(f => f.Handlers);
+    }
+
+    /// <summary>Flattens a YAML parse failure into a single readable line.</summary>
+    private static string Describe(Exception ex)
+    {
+        var message = ex.Message;
+
+        // YamlDotNet nests the useful detail (line/column, the offending node) one level down.
+        if (ex.InnerException != null)
+            message += " -> " + ex.InnerException.Message;
+
+        return message.ReplaceLineEndings(" ");
     }
     
     public static FortitudeHandler FromYamlSingle(string yaml)
@@ -154,41 +285,42 @@ public static class FortitudeYamlLoader
             .IgnoreUnmatchedProperties()
             .Build();
 
-        var handlerDefs = deserializer.Deserialize<FortitudeFile>(yaml).Handlers;
+        // An empty or comment-only document deserializes to null.
+        var handlerDefs = deserializer.Deserialize<FortitudeFile>(yaml)?.Handlers;
+        if (handlerDefs == null)
+            yield break;
+
         foreach (var handlerDef in handlerDefs)
         {
             yield return ToHandler(handlerDef);
         }
     }
 
-    private static object ConvertNumber(object value)
+    private static bool EvaluateJsonPredicate(byte[]? body, string jsExpression)
     {
-        if (value is string s && int.TryParse(s, out var i))
-            return i;
-        if (value is string s2 && double.TryParse(s2, out var d))
-            return d;
-        return value;
-    }
+        // Matching must never throw: a body that is not JSON, or not a JSON object, simply
+        // does not match. Letting an exception escape turns a non-match into a 500.
+        if (body == null || body.Length == 0)
+            return false;
 
-    private static Dictionary<string, object> CoerceNumbers(Dictionary<string, object> dict)
-    {
-        return dict.ToDictionary(kvp => kvp.Key, kvp => kvp.Value switch
+        try
         {
-            Dictionary<string, object> d => CoerceNumbers(d),
-            List<object> l => l.Select(ConvertNumber).ToList(),
-            _ => ConvertNumber(kvp.Value)
-        });
-    }
-    
-    private static bool EvaluateJsonPredicate(byte[] body, string jsExpression)
-    {
-        using var doc = JsonDocument.Parse(body);
-        var engine = new Engine(cfg => cfg.LimitRecursion(64).TimeoutInterval(TimeSpan.FromMilliseconds(50)));
+            using var doc = JsonDocument.Parse(body);
 
-        InjectJson(engine, doc.RootElement);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return false;
 
-        var result = engine.Evaluate(jsExpression).ToObject();
-        return System.Convert.ToBoolean(result);
+            var engine = new Engine(cfg => cfg.LimitRecursion(64).TimeoutInterval(TimeSpan.FromMilliseconds(50)));
+
+            InjectJson(engine, doc.RootElement);
+
+            var result = engine.Evaluate(jsExpression).ToObject();
+            return System.Convert.ToBoolean(result);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static void InjectJson(Engine engine, JsonElement element)
@@ -340,14 +472,9 @@ public static class FortitudeYamlLoader
         var jsonBody = handler.Response.Body?.Json;
         if (jsonBody != null)
         {
-            var renderedJson =
-                RenderJsonTemplates(jsonBody, templateContext);
+            var renderedJson = RenderJsonTemplates(jsonBody, templateContext);
 
-            res.Body = JsonSerializer.SerializeToUtf8Bytes(
-                CoerceNumbers((Dictionary<string, object>)renderedJson!), 
-                JsonSerializerOptions.Web
-            );
-
+            res.Body = JsonSerializer.SerializeToUtf8Bytes(renderedJson, JsonSerializerOptions.Web);
             res.ContentType = "application/json";
         }
 
@@ -426,4 +553,19 @@ public sealed record ResponseBodyDefinition
 {
     public Dictionary<string, object>? Json { get; init; }
     public string? Text { get; init; }
+}
+
+/// <summary>
+///     The outcome of loading one YAML handler definition file.
+/// </summary>
+/// <param name="Path">Full path of the file.</param>
+/// <param name="Handlers">Handlers parsed from it; empty when <paramref name="Error" /> is set.</param>
+/// <param name="Error">Parse failure description, or null when the file loaded cleanly.</param>
+public sealed record YamlHandlerFile(string Path, IReadOnlyList<FortitudeHandler> Handlers, string? Error)
+{
+    /// <summary>File name without its directory.</summary>
+    public string FileName => System.IO.Path.GetFileName(Path);
+
+    /// <summary>Whether the file failed to parse.</summary>
+    public bool HasError => Error != null;
 }

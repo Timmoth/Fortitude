@@ -127,6 +127,10 @@ Because the second handler is more specific and appears later, it overrides the 
 ## Response templating
 Fortitude supports templated values in responses using {{ }} syntax.
 
+Templates resolve against four sources - `route`, `body`, `query` and `headers` - and work
+anywhere in the response body, including inside nested objects and arrays. Quoting is optional:
+`id: {{route.id}}` and `id: "{{route.id}}"` behave identically.
+
 ```yaml
 handlers:
   - match:
@@ -190,3 +194,45 @@ From there you can:
 - Add new YAML files
 - Enable / disable handlers
 - Apply changes instantly without restarting the server
+
+## How values are typed
+
+YAML gives Fortitude every scalar as text, so the JSON type is inferred when the response is
+written:
+
+| YAML | JSON |
+|---|---|
+| `count: 3` | `3` |
+| `flag: true` | `true` |
+| `name: Alice` | `"Alice"` |
+| `userId: "{{route.id}}"` against `/users/42` | `42` |
+| `postcode: "01234"` | `"01234"` |
+
+Values with a redundant leading zero stay strings, because those are almost always identifiers,
+postcodes or phone numbers that would be corrupted by being read as numbers. A template that
+resolves to nothing renders as an empty string.
+
+## Where definitions live
+
+Handler files are read from `Settings:ConfigDirectory`, which defaults to a `config` directory
+beside the executable - the path the Docker image expects a volume at:
+
+```bash
+docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config aptacode/fortitude-server:latest
+```
+
+The directory is searched recursively, and both `.yaml` and `.yml` are picked up. Files load in
+path order, and since the last matching handler wins, a definition in `z.yaml` overrides one for
+the same route in `a.yaml`.
+
+`Settings:HotReload` (on by default) watches the directory and reloads when files change, so you
+can edit definitions against a running server.
+
+A file that fails to parse is reported and skipped rather than taking the server down with it -
+its siblings still load, and the live UI shows the parse error against the file.
+
+## Precedence over client handlers
+
+YAML handlers are matched on the server, before a request is forwarded to any connected client.
+If a YAML definition and a client-registered handler both match the same request, the YAML one
+answers it and the client never sees the request.

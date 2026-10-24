@@ -16,7 +16,7 @@ public class FortitudeMiddleware(
     RequestTracker tracker,
     ConnectedClientService connectedClientService,
     IOptions<Settings> settings,
-    HandlerSet handlers)
+    YamlHandlerStore yamlHandlers)
 
 {
     private readonly ConnectedClientService _connectedClientService =
@@ -67,7 +67,7 @@ public class FortitudeMiddleware(
             return;
         }
 
-        var response = await handlers.HandleIncomingAsync(req);
+        var response = await yamlHandlers.HandleIncomingAsync(req);
         if (response != null)
         {
             _tracker.Add(response);

@@ -1,4 +1,4 @@
-﻿@inject HandlerSet HandlerSet
+﻿@inject YamlHandlerStore HandlerStore
 @using System.Text
 @using System.IO
 @using Fortitude.Client
@@ -60,6 +60,13 @@
         </div>
     }
     
+    @if (_saveError != null)
+    {
+        <div class="bg-red-50 border border-red-300 text-red-800 rounded-lg p-4" role="alert">
+            <span class="font-semibold">Could not save:</span> @_saveError
+        </div>
+    }
+
     <!-- YAML Files Table -->
     <div class="bg-white shadow rounded-lg overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
@@ -75,7 +82,16 @@
                 {
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-2 text-sm text-gray-700">@file.FileName</td>
-                        <td class="px-4 py-2 text-sm text-gray-700">@file.HandlersCount</td>
+                        <td class="px-4 py-2 text-sm text-gray-700">
+                            @if (file.Error != null)
+                            {
+                                <span class="text-red-600 font-semibold" title="@file.Error">parse error</span>
+                            }
+                            else
+                            {
+                                @file.HandlersCount
+                            }
+                        </td>
                         <td class="px-4 py-2 text-sm text-gray-700 space-x-2">
                             <button class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
                                     @onclick="() => EditYaml(file)">Edit</button>
@@ -95,6 +111,13 @@
             <div class="bg-white rounded-lg shadow-lg w-3/4 max-w-4xl p-6 space-y-4">
                 <h3 class="text-lg font-semibold">@((_editingFile.IsNew ? "New Handler" : "Edit Handler") + ": " + _editingFile.FileName)</h3>
                 
+                @if (_editingFile.Error != null)
+                {
+                    <div class="bg-red-50 border border-red-300 text-red-800 rounded p-3 text-sm font-mono">
+                        @_editingFile.Error
+                    </div>
+                }
+
                 <textarea class="w-full h-96 p-2 border rounded text-sm font-mono" @bind="_editingFile.Content"></textarea>
 
                 <div class="flex justify-end space-x-2">
@@ -137,33 +160,26 @@
 
     private void LoadHandlerFiles()
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "config");
-        if (!Directory.Exists(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
-
-        _handlerFiles = Directory.GetFiles(dir, "*.yaml")
+        _handlerFiles = HandlerStore.Files
             .Select(f => new YamlFileInfo
             {
-                FileName = Path.GetFileName(f),
-                FullPath = f,
-                Content = File.ReadAllText(f),
-                HandlersCount = CountHandlersInYaml(f)
+                FileName = f.FileName,
+                FullPath = f.Path,
+                Content = ReadOrEmpty(f.Path),
+                HandlersCount = f.Handlers.Count,
+                Error = f.Error
             }).ToList();
     }
 
-    private int CountHandlersInYaml(string filePath)
+    private static string ReadOrEmpty(string path)
     {
         try
         {
-            var yamlText = File.ReadAllText(filePath);
-            var parsed = FortitudeYamlLoader.FromYamlMulti(yamlText);
-            return parsed.ToList().Count;
+            return File.ReadAllText(path);
         }
-        catch
+        catch (Exception ex)
         {
-            return 0;
+            return $"# Could not read {path}: {ex.Message}";
         }
     }
 
@@ -174,7 +190,8 @@
             FileName = file.FileName,
             FullPath = file.FullPath,
             Content = file.Content,
-            HandlersCount = file.HandlersCount
+            HandlersCount = file.HandlersCount,
+            Error = file.Error
         };
     }
 
@@ -197,29 +214,39 @@
     {
         if (_editingFile == null) return;
 
-        var dir = Path.Combine(AppContext.BaseDirectory, "config");
-        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-        var filePath = Path.Combine(dir, _editingFile.FileName);
-
-        File.WriteAllText(filePath, _editingFile.Content, Encoding.UTF8);
-
-        // Reload the HandlerSet singleton so server uses updated YAML
-        HandlerSet.ReloadYamlFiles();
+        try
+        {
+            // The file name comes from the browser; the store rejects anything that would
+            // escape the handler directory.
+            HandlerStore.Save(_editingFile.FileName, _editingFile.Content);
+            _saveError = null;
+            _editingFile = null;
+        }
+        catch (Exception ex)
+        {
+            _saveError = ex.Message;
+            return;
+        }
 
         LoadHandlerFiles();
-        _editingFile = null;
     }
 
     private void DeleteYaml(YamlFileInfo file)
     {
-        if (File.Exists(file.FullPath))
+        try
         {
-            File.Delete(file.FullPath);
-            HandlerSet.ReloadYamlFiles();
-            LoadHandlerFiles();
+            HandlerStore.Delete(file.FileName);
+            _saveError = null;
         }
+        catch (Exception ex)
+        {
+            _saveError = ex.Message;
+        }
+
+        LoadHandlerFiles();
     }
+
+    private string? _saveError;
 
     private class YamlFileInfo
     {
@@ -228,6 +255,7 @@
         public string Content { get; set; } = string.Empty;
         public int HandlersCount { get; set; }
         public bool IsNew { get; set; }
+        public string? Error { get; set; }
     }
     
     private void GenerateYamlFromCurl()

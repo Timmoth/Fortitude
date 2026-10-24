@@ -62,6 +62,9 @@ docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config aptacode/fortitude-
 | `PORTS` | – | Bind several ports, as a list and/or range (`5000-5005`, `8080,8082`). Each connecting client reserves one, which is what keeps parallel tests isolated. |
 | `Settings:ResponseTimeoutSeconds` | `5` | How long the server waits for a client to produce a response before returning `504`. Raise it for slow handlers, or to step through a responder in a debugger. |
 | `Settings:Broadcast` | `false` | Force every client to receive every request, ignoring port routing. Disables isolation — only use it with a single connected client. |
+| `Settings:ConfigDirectory` | `config` beside the executable | Where YAML handler definitions are read from. Searched recursively for `.yaml` and `.yml`. Relative paths resolve against the application directory. |
+| `Settings:HotReload` | `true` | Watch the handler directory and reload definitions when they change, without a restart. |
+| `Settings:EnableAdminUi` | `true` | Serve the live monitoring and YAML editing UI at `/fortitude`. The UI is unauthenticated and can write handler files — turn it off when the server is reachable by anything you do not trust. |
 
 `Settings:*` keys are ordinary .NET configuration, so they can be set via environment variable
 (`-e Settings__ResponseTimeoutSeconds=30` in Docker) or `appsettings.json`.
