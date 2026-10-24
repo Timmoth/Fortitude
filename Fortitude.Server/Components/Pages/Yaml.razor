@@ -264,36 +264,21 @@
             string.IsNullOrWhiteSpace(_jsonResponseInput))
             return;
 
-        var matchYaml = FortitudeYamlGenerator.CurlToMatchYaml(_curlInput);
-        var responseYaml = FortitudeYamlGenerator.JsonToResponseYaml(_jsonResponseInput);
-
-        var handlerYaml = new StringBuilder();
-        handlerYaml.AppendLine("handlers:");
-        handlerYaml.AppendLine("  -");
-        handlerYaml.Append(Indent(matchYaml, 4));
-        handlerYaml.Append(Indent(responseYaml, 4));
-
-        _editingFile = new YamlFileInfo
+        try
         {
-            FileName = $"generated-{DateTime.Now:yyyyMMddHHmmss}.yaml",
-            Content = handlerYaml.ToString(),
-            IsNew = true
-        };
+            _editingFile = new YamlFileInfo
+            {
+                FileName = $"generated-{DateTime.Now:yyyyMMddHHmmss}.yaml",
+                Content = FortitudeYamlGenerator.CurlToHandlerYaml(_curlInput, _jsonResponseInput),
+                IsNew = true
+            };
 
-        _showCurlDialog = false;
+            _saveError = null;
+            _showCurlDialog = false;
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Could not generate a handler from that input: {ex.Message}";
+        }
     }
-
-    
-    private static string Indent(string text, int spaces)
-    {
-        var pad = new string(' ', spaces);
-        return string.Join(
-            Environment.NewLine,
-            text.Split(Environment.NewLine)
-                .Where(l => l.Length > 0)
-                .Select(l => pad + l)
-        ) + Environment.NewLine;
-    }
-
-
 }
