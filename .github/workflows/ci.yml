@@ -33,12 +33,22 @@ jobs:
       - name: Build
         run: dotnet build Fortitude.sln -c Release --no-restore
 
-      - name: Test
+      - name: Unit and integration tests
         run: >
           dotnet test Fortitude.Tests/Fortitude.Tests.csproj
           -c Release --no-build
-          --logger "trx;LogFileName=test-results.trx"
+          --logger "trx;LogFileName=unit-results.trx"
           --collect:"XPlat Code Coverage"
+          --results-directory ./TestResults
+
+      # The example suite drives a real Aspire host, and builds and runs a Docker image.
+      # Container tests skip themselves when no daemon is available; GitHub runners have one,
+      # so they do run here.
+      - name: Example tests
+        run: >
+          dotnet test Examples/Fortitude.Example.Tests/Fortitude.Example.Tests.csproj
+          -c Release --no-build
+          --logger "trx;LogFileName=example-results.trx"
           --results-directory ./TestResults
 
       - name: Upload test results
@@ -48,25 +58,3 @@ jobs:
           name: test-results
           path: ./TestResults
           if-no-files-found: warn
-
-  # The Examples suite drives real Docker containers (Testcontainers pulls
-  # aptacode/fortitude-server) and a .NET Aspire AppHost. It is slower and has
-  # external dependencies, so it is manual-trigger only until it is made
-  # reliably headless. Tracked as P4-5 in temp/IMPROVEMENT-PLAN.md.
-  integration-test:
-    name: Docker & Aspire example tests
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore
-        run: dotnet restore Fortitude.sln
-
-      - name: Test
-        run: dotnet test Examples/Fortitude.Example.Tests/Fortitude.Example.Tests.csproj -c Release

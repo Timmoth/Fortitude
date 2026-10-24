@@ -38,7 +38,7 @@ public sealed class AspireTestFixture : IAsyncLifetime
     
     public async Task<HttpClient> CreateHttpClient(string applicationName)
     {
-        var _testingClient = _app!.CreateHttpClient(applicationName);
+        var _testingClient = _app!.CreateHttpClient(applicationName, "http");
         
         await _notificationService!.WaitForResourceAsync(applicationName, KnownResourceStates.Running).WaitAsync(TimeSpan.FromSeconds(30));
 

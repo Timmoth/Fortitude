@@ -29,7 +29,7 @@ public sealed class DockerTests
         _baseUrl = $"http://{_containerFixture.Host}:{_containerFixture.MappedPort}";
     }
     
-    [Fact]
+    [RequiresDockerFact]
     public async Task CreateUser_UsingDockerContainer_Test()
     {
         // ARRANGE: Use the cached base URL from the fixture
@@ -79,7 +79,7 @@ public sealed class DockerTests
         await fortitude.StopAsync();
     }
     
-    [Fact]
+    [RequiresDockerFact]
     public async Task GetUsers_ForwardsRequestToExternalApi_AndReturnsUsers()
     {
         // Given
@@ -130,7 +130,7 @@ public sealed class DockerTests
         await fortitude.StopAsync();
     } 
     
-    [Fact]
+    [RequiresDockerFact]
     public async Task GetCreateUser_ForwardsRequestToExternalApi_AndReturnsCreatedResult()
     {
         // Arrange: Start Fortitude fake API server

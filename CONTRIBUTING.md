@@ -19,6 +19,16 @@ dotnet test Fortitude.Tests/Fortitude.Tests.csproj
 The unit suite is fast - a few seconds - and runs with no external dependencies. It starts
 real Kestrel servers on ephemeral ports, so it is safe to run in parallel with anything else.
 
+The example suite is slower and exercises the real integrations:
+
+```bash
+dotnet test Examples/Fortitude.Example.Tests/Fortitude.Example.Tests.csproj
+```
+
+It runs anywhere. The Aspire tests use plain HTTP endpoints, so no trusted development
+certificate is needed, and the container tests skip themselves with an explanation when no
+Docker daemon is available. CI runs both suites.
+
 To run the server locally and poke at the live UI:
 
 ```bash
