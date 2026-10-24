@@ -38,6 +38,7 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 *   [response-builder-usage](./docs/response-builder-usage.md)
 *   [yaml-handlers](./docs/yaml-handlers.md)
 *   [admin-api](./docs/admin-api.md)
+*   [openapi](./docs/openapi.md)
 
 ### Running the Fortitude Server via Docker
 
@@ -330,7 +331,9 @@ language configure handlers and read observed traffic, so the server can be driv
 JS, Python, Java or Go test suite without a Fortitude client library.
 
 **What are current limitations?**  
-Primary client is .NET, shared API definitions are not yet available, running the external fortitude server is required.
+The primary client is .NET, though the [admin API](./docs/admin-api.md) lets any language drive
+the server. The external server is only needed for black-box testing; intercept mode runs
+in-process.
 
 **Why is it called Fortitude?**  
 It's named after Operation Fortitude, a WW2 deception campaign, reflecting simulated external behavior.
