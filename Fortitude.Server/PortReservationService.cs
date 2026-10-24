@@ -59,20 +59,44 @@ public class PortReservationService
     /// </exception>
     public int ReservePort()
     {
-        foreach (var port in _activePorts)
-        {
-            if (_reservedPorts.ContainsKey(port))
-                continue;
-
-            if (_reservedPorts.TryAdd(port, 0))
-            {
-                _logger.LogInformation("Port reserved: {Port}", port);
-                return port;
-            }
-        }
+        if (TryReservePort(out var port))
+            return port;
 
         _logger.LogError("No available ports to reserve.");
         throw new InvalidOperationException("No available ports to reserve.");
+    }
+
+    /// <summary>
+    ///     Attempts to reserve a free port from the server's bound ports without throwing.
+    /// </summary>
+    /// <param name="port">The reserved port number, or -1 if none was available.</param>
+    /// <returns>
+    ///     True if a port was reserved; false if the server has no bound ports or they are all taken.
+    /// </returns>
+    /// <remarks>
+    ///     Prefer this over <see cref="ReservePort" /> on paths where failing to reserve a port is
+    ///     recoverable — notably when a client connects. The server runs in plenty of valid
+    ///     configurations with no reservable ports at all (an in-memory <c>TestServer</c>, or a
+    ///     single port already claimed by another client), and those must not tear down the
+    ///     client's connection.
+    /// </remarks>
+    public bool TryReservePort(out int port)
+    {
+        foreach (var candidate in _activePorts)
+        {
+            if (_reservedPorts.ContainsKey(candidate))
+                continue;
+
+            if (_reservedPorts.TryAdd(candidate, 0))
+            {
+                _logger.LogInformation("Port reserved: {Port}", candidate);
+                port = candidate;
+                return true;
+            }
+        }
+
+        port = -1;
+        return false;
     }
 
     /// <summary>

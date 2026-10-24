@@ -40,6 +40,17 @@ In the `AppHost` we need to:
 1.  Add the `fortitude-server` project. This will be our mock server for the external API.
 2.  Configure the `example-api` service to use the Fortitude server’s URL via its ExternalApi:BaseUrl. Aspire’s built-in service discovery makes this easy.
 
+### A note on `Settings:Broadcast`
+
+Aspire gives the Fortitude server a single endpoint, and `example-api` is pointed at that one URL via service
+discovery. `Settings:Broadcast=true` tells the server to hand every incoming request to every connected client
+instead of routing by port, which guarantees the test's client sees the traffic no matter which port it arrived on.
+
+The trade-off is that broadcasting removes isolation between clients, so **only one Fortitude client should be
+connected at a time** under this setting. If you need several isolated clients against one server, start it with a
+port range (`PORTS=5000-5005`) and leave `Broadcast` off — each client then reserves its own port and only sees
+requests that arrive on it.
+
 ## 2. Creating a Test Fixture for Aspire
 
 To run integration tests, you need Aspire to spin up your distributed application. An xUnit test fixture handles this setup and teardown cleanly.

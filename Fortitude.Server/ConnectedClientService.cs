@@ -54,18 +54,26 @@ public class ConnectedClientService
     public event Action? OnChanged;
 
     /// <summary>
+    ///     Connection IDs of clients that hold no port reservation, and therefore receive
+    ///     any request that did not arrive on a reserved port.
+    /// </summary>
+    public IReadOnlyList<string> UnroutedClients =>
+        _clientPorts.Where(kvp => kvp.Value <= 0).Select(kvp => kvp.Key).ToList();
+
+    /// <summary>
     ///     Adds a connected client and reserves a port for them.
     /// </summary>
     /// <param name="connectionId">The unique connection identifier.</param>
-    /// <exception cref="InvalidOperationException">
-    ///     Thrown if no ports are available for allocation.
-    /// </exception>
+    /// <remarks>
+    ///     Never throws when a port cannot be reserved. The client is still registered, with a
+    ///     port of -1, and will receive unrouted traffic instead. See <see cref="UnroutedClients" />.
+    /// </remarks>
     public void Add(string connectionId)
     {
         if (string.IsNullOrWhiteSpace(connectionId))
             throw new ArgumentException("Connection ID cannot be null or empty.", nameof(connectionId));
 
-        var port = _settings.Broadcast ? -1 : _portService.ReservePort();
+        var port = ReservePortFor(connectionId);
 
         _clientPorts[connectionId] = port;
 
@@ -74,6 +82,28 @@ public class ConnectedClientService
             connectionId, port, Count);
 
         OnChanged?.Invoke();
+    }
+
+    /// <summary>
+    ///     Resolves the port a newly connected client should own, or -1 if it should be unrouted.
+    /// </summary>
+    private int ReservePortFor(string connectionId)
+    {
+        // Broadcast is an explicit opt out of per-port routing: every client stays unrouted
+        // and therefore sees every request.
+        if (_settings.Broadcast)
+            return -1;
+
+        if (_portService.TryReservePort(out var port))
+            return port;
+
+        _logger.LogWarning(
+            "No port was available to reserve for client {ConnectionId}; it will receive " +
+            "unrouted traffic. Concurrent clients are NOT isolated from one another in this " +
+            "mode. Start the server with PORTS=<range> to give each client its own port.",
+            connectionId);
+
+        return -1;
     }
 
     /// <summary>
@@ -87,7 +117,9 @@ public class ConnectedClientService
 
         if (_clientPorts.TryRemove(connectionId, out var port))
         {
-            _portService.ReleasePort(port);
+            // Unrouted clients hold no reservation, so there is nothing to give back.
+            if (port > 0)
+                _portService.ReleasePort(port);
 
             _logger.LogInformation(
                 "Client disconnected: {ConnectionId}. Released port: {Port}. Total connected: {Count}",
@@ -123,6 +155,9 @@ public class ConnectedClientService
     /// </summary>
     public string? GetClientByPort(int port)
     {
+        if (port <= 0)
+            return null;
+
         return _clientPorts.FirstOrDefault(kvp => kvp.Value == port).Key;
     }
 }

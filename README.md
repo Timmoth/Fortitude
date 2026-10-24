@@ -317,7 +317,19 @@ It's named after Operation Fortitude, a WW2 deception campaign, reflecting simul
 
 **Can I run multiple tests or services in parallel?**  
 Yes! Fortitude automatically assigns each connected client a unique port from the port range you provide via PORTS.
-This ensures each test instance is isolated, avoiding collisions and enabling true parallel execution.
+Each client only receives requests that arrive on the port it was assigned, so test instances stay isolated,
+avoiding collisions and enabling true parallel execution.
+
+**What if there aren't enough ports for every client?**  
+A client that can't reserve a port still connects, but becomes *unrouted*: it receives any request that arrives on a
+port no client owns, and so does every other unrouted client. That is shared, not isolated — the server logs a warning
+when it happens. Give the server a wider range via `PORTS` to get a port per concurrent client. Running with no ports
+configured at all (for example against an in-memory `TestServer`) means every client is unrouted, which is the expected
+behaviour for a single-client setup.
+
+**Can I turn port routing off?**  
+Set `Settings:Broadcast=true` to force every client to receive every request regardless of port. This disables
+isolation, so only use it when a single client is connected. It is off by default.
 
 
 ## **Operation Fortitude in history**

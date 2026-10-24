@@ -1,6 +1,5 @@
 using Fortitude.Client;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Options;
 
 namespace Fortitude.Server;
 
@@ -15,7 +14,6 @@ public class FortitudeMiddleware(
     ILogger<FortitudeMiddleware> logger,
     RequestTracker tracker,
     ConnectedClientService connectedClientService,
-    IOptions<Settings> settings,
     HandlerSet handlers)
 
 {
@@ -26,8 +24,6 @@ public class FortitudeMiddleware(
     private readonly ILogger<FortitudeMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly RequestDelegate _next = next ?? throw new ArgumentNullException(nameof(next));
     private readonly PendingRequestStore _pending = pending ?? throw new ArgumentNullException(nameof(pending));
-
-    private readonly Settings _settings = settings.Value ?? throw new ArgumentNullException(nameof(settings));
     private readonly RequestTracker _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
 
     public async Task InvokeAsync(HttpContext ctx)
@@ -78,70 +74,51 @@ public class FortitudeMiddleware(
             return;
         }
         
-        if (_settings.Broadcast)
+        // A client that reserved this port owns it exclusively, which is what keeps
+        // concurrent tests isolated. Only when nobody owns the port do we fall back to the
+        // clients holding no reservation — the in-memory TestServer case, a single-port
+        // deployment where reservation was unavailable, or an explicit Settings:Broadcast.
+        var targetClientId = _connectedClientService.GetClientByPort(requestPort);
+        var recipients = targetClientId != null
+            ? [targetClientId]
+            : _connectedClientService.UnroutedClients;
+
+        if (recipients.Count == 0)
         {
-            _logger.LogInformation(
-                "Broadcast request on port {Port}",
+            _logger.LogWarning(
+                "No connected client is bound to port {Port}. Cannot route request.",
                 requestPort);
 
-            // Send only to the target client
-            try
-            {
-                await _hub.Clients.All
-                    .SendAsync("IncomingRequest", req)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to broadcast request {RequestId}",
-                    requestId);
-
-                var error = new FortitudeResponse(requestId).InternalServerError();
-                _tracker.Add(error);
-                await WriteResponse(ctx, error).ConfigureAwait(false);
-                return;
-            }
+            ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await ctx.Response.WriteAsync(
+                    $"No Fortitude client is connected for port {requestPort}.")
+                .ConfigureAwait(false);
+            return;
         }
-        else
-        {
-            // Determine which client handles this port
-            var targetClientId = _connectedClientService.GetClientByPort(requestPort);
 
-            if (targetClientId == null)
-            {
-                _logger.LogWarning(
-                    "No connected client is bound to port {Port}. Cannot route request.",
-                    requestPort);
-
-                ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-                await ctx.Response.WriteAsync(
-                        $"No Fortitude client is connected for port {requestPort}.")
-                    .ConfigureAwait(false);
-                return;
-            }
-
+        if (targetClientId != null)
             _logger.LogInformation(
                 "Routing request on port {Port} to client {ClientId}",
-                requestPort,
-                targetClientId);
+                requestPort, targetClientId);
+        else
+            _logger.LogInformation(
+                "No client owns port {Port}; delivering to {Count} unrouted client(s)",
+                requestPort, recipients.Count);
 
-            // Send only to the target client
-            try
-            {
-                await _hub.Clients.Client(targetClientId)
-                    .SendAsync("IncomingRequest", req)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send request {RequestId} to client {ClientId}",
-                    requestId, targetClientId);
+        try
+        {
+            await _hub.Clients.Clients(recipients)
+                .SendAsync("IncomingRequest", req)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send request {RequestId} to client(s)", requestId);
 
-                var error = new FortitudeResponse(requestId).InternalServerError();
-                _tracker.Add(error);
-                await WriteResponse(ctx, error).ConfigureAwait(false);
-                return;
-            }
+            var error = new FortitudeResponse(requestId).InternalServerError();
+            _tracker.Add(error);
+            await WriteResponse(ctx, error).ConfigureAwait(false);
+            return;
         }
 
         // Await response

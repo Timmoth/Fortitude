@@ -162,7 +162,21 @@ public class Program
     }
 }
 
+/// <summary>
+///     Server configuration, bound from the "Settings" configuration section.
+/// </summary>
 public class Settings
 {
-    public bool Broadcast { get; set; } = true; // default = false
+    /// <summary>
+    ///     Forces every connected client to receive every incoming request, bypassing per-port
+    ///     routing entirely.
+    /// </summary>
+    /// <remarks>
+    ///     Leave this off. By default each connecting client reserves one of the server's bound
+    ///     ports and only sees requests that arrive on it, which is what allows concurrent tests
+    ///     to share one server without interfering. Clients still fall back to shared delivery
+    ///     automatically when no port can be reserved, so this switch is only needed to force
+    ///     that behaviour when ports *are* available.
+    /// </remarks>
+    public bool Broadcast { get; set; }
 }
