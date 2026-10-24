@@ -54,6 +54,18 @@ docker run -e PORTS=5000-5005 -p 5000-5005:5000-5005 aptacode/fortitude-server:l
 docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config aptacode/fortitude-server:latest
 ```
 
+### Configuration
+
+| Setting | Default | Description |
+|---|---|---|
+| `PORT` | – | Bind a single port. |
+| `PORTS` | – | Bind several ports, as a list and/or range (`5000-5005`, `8080,8082`). Each connecting client reserves one, which is what keeps parallel tests isolated. |
+| `Settings:ResponseTimeoutSeconds` | `5` | How long the server waits for a client to produce a response before returning `504`. Raise it for slow handlers, or to step through a responder in a debugger. |
+| `Settings:Broadcast` | `false` | Force every client to receive every request, ignoring port routing. Disables isolation — only use it with a single connected client. |
+
+`Settings:*` keys are ordinary .NET configuration, so they can be set via environment variable
+(`-e Settings__ResponseTimeoutSeconds=30` in Docker) or `appsettings.json`.
+
 ### Example
 
 [An example project / tests can be in the examples directory.

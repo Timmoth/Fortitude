@@ -27,7 +27,10 @@ public class PendingRequestStore
     ///     Waits asynchronously for the response for a given request ID, with optional timeout.
     /// </summary>
     /// <param name="id">The request ID.</param>
-    /// <param name="timeout">Optional timeout for waiting (default: 30 seconds).</param>
+    /// <param name="timeout">
+    ///     Optional timeout for waiting. Defaults to <see cref="Settings.DefaultResponseTimeoutSeconds" />;
+    ///     callers on the request path pass the configured <see cref="Settings.ResponseTimeout" /> instead.
+    /// </param>
     /// <returns>The response from the client.</returns>
     /// <exception cref="TimeoutException">Thrown if the response does not arrive within the timeout period.</exception>
     public async Task<FortitudeResponse> WaitForResponse(Guid id, TimeSpan? timeout = null)
@@ -42,7 +45,7 @@ public class PendingRequestStore
             _waiting[id] = tcs;
         }
 
-        timeout ??= TimeSpan.FromSeconds(30);
+        timeout ??= TimeSpan.FromSeconds(Settings.DefaultResponseTimeoutSeconds);
 
         var delayTask = Task.Delay(timeout.Value);
         var completedTask = await Task.WhenAny(tcs.Task, delayTask).ConfigureAwait(false);

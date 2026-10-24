@@ -179,4 +179,26 @@ public class Settings
     ///     that behaviour when ports *are* available.
     /// </remarks>
     public bool Broadcast { get; set; }
+
+    /// <summary>
+    ///     How long the server waits for a connected client to produce a response before giving
+    ///     up and returning 504 Gateway Timeout. Defaults to 5 seconds.
+    /// </summary>
+    /// <remarks>
+    ///     Raise this when a handler does real work, deliberately delays, or when you want to
+    ///     step through a responder in a debugger without the request expiring underneath you.
+    ///     Values of zero or less are ignored in favour of the default.
+    /// </remarks>
+    public int ResponseTimeoutSeconds { get; set; } = DefaultResponseTimeoutSeconds;
+
+    /// <summary>The response timeout applied when none is configured.</summary>
+    public const int DefaultResponseTimeoutSeconds = 5;
+
+    /// <summary>
+    ///     <see cref="ResponseTimeoutSeconds" /> as a <see cref="TimeSpan" />, falling back to
+    ///     the default if it was configured to a non-positive value.
+    /// </summary>
+    public TimeSpan ResponseTimeout => ResponseTimeoutSeconds > 0
+        ? TimeSpan.FromSeconds(ResponseTimeoutSeconds)
+        : TimeSpan.FromSeconds(DefaultResponseTimeoutSeconds);
 }

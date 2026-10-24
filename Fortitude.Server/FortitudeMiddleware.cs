@@ -1,5 +1,6 @@
 using Fortitude.Client;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Options;
 
 namespace Fortitude.Server;
 
@@ -14,6 +15,7 @@ public class FortitudeMiddleware(
     ILogger<FortitudeMiddleware> logger,
     RequestTracker tracker,
     ConnectedClientService connectedClientService,
+    IOptions<Settings> settings,
     HandlerSet handlers)
 
 {
@@ -24,6 +26,7 @@ public class FortitudeMiddleware(
     private readonly ILogger<FortitudeMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly RequestDelegate _next = next ?? throw new ArgumentNullException(nameof(next));
     private readonly PendingRequestStore _pending = pending ?? throw new ArgumentNullException(nameof(pending));
+    private readonly Settings _settings = settings.Value ?? throw new ArgumentNullException(nameof(settings));
     private readonly RequestTracker _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
 
     public async Task InvokeAsync(HttpContext ctx)
@@ -126,11 +129,14 @@ public class FortitudeMiddleware(
         {
             response = await _pending.WaitForResponse(
                 requestId,
-                TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                _settings.ResponseTimeout).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
-            _logger.LogWarning("Timeout waiting for response for {RequestId}", requestId);
+            _logger.LogWarning(
+                "Timed out after {Timeout} waiting for a response to {RequestId}. "
+                + "Raise Settings:ResponseTimeoutSeconds if the handler needs longer.",
+                _settings.ResponseTimeout, requestId);
             response = new FortitudeResponse(requestId).GatewayTimeout();
         }
         catch (Exception ex)
