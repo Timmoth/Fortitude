@@ -66,9 +66,13 @@ fortitude.Accepts()
             res.Ok(user);
     });
 
-app.Run();
-
+// The client runs until the process is stopped; keep it alive.
+Console.WriteLine($"Fake service listening on {url}");
+await Task.Delay(Timeout.Infinite);
 ```
+
+`url` is where your application should point: `ConnectAsync` returns the address of the port
+this client reserved, which is not necessarily the server's base URL.
 
 ### Simulate Realistic Behavior
 
@@ -81,34 +85,75 @@ To determine how your error handling logic works you just have your endpoint ret
 fortitude.Accepts()
     .Get()
     .HttpRoute("/users/{id}")
-    .Returns((req, res) =>
-    {
-        res.Forbidden()
-    });
+    .Returns((req, res) => res.Forbidden());
 ```
 
 **Simulate Latency:**
-To determine how your app feels when the 3rd party service is slow simply add an artificial delay to your mock endpoint.
+To see how your app feels when the third party is slow, hold the response back. This is how
+you find out whether your timeouts, retries and spinners actually work.
 
 ```csharp
-app.MapGet("/users/slow", async () => 
-{
-    await Task.Delay(2000); // Wait for 2 seconds
-    return Results.Ok(users);
-});
+fortitude.Accepts()
+    .Get()
+    .HttpRoute("/users")
+    .WithDelay(TimeSpan.FromSeconds(2))
+    .Returns((req, res) => res.Ok(users));
 ```
 
-**Make it Stateful:**
-Sometimes you'll need to simulate a longer flow through your system which will require a stateful mocked service. For example, a `POST /users` endpoint can add a new user to your in-memory list, which can then be retrieved by the `GET` endpoint.
+`WithRandomDelay(100, 500)` varies it per request, which is closer to how a real service
+behaves. Note the server gives up after `Settings:ResponseTimeoutSeconds` (5 by default) and
+returns a `504`, so raise that if you want a delay longer than it.
+
+**Simulate Faults:**
+An error status is the easy case. A dependency that drops the connection, or returns JSON that
+does not parse, is the one that finds bugs.
 
 ```csharp
-// POST /users
-app.MapPost("/users", (User user) =>
-{
-    var newUser = user with { Id = users.Max(u => u.Id) + 1 };
-    users.Add(newUser);
-    return Results.Created($"/users/{newUser.Id}", newUser);
-});
+fortitude.Accepts()
+    .Get()
+    .HttpRoute("/users")
+    .ReturnsFault(HttpFault.ConnectionReset);
+```
+
+`FailsRandomly(0.2)` fails a proportion of calls instead, leaving the rest to the normal
+responder - useful for leaving running while you click around.
+
+**Make it Stateful:**
+Your mock is ordinary C#, so it can close over state. A `POST /users` can add to a list the
+`GET` reads back:
+
+```csharp
+var users = new List<User> { new(1, "Alice", "alice@example.com") };
+
+fortitude.Accepts()
+    .Get()
+    .HttpRoute("/users")
+    .Returns((req, res) => res.Ok(users));
+
+fortitude.Accepts()
+    .Post()
+    .HttpRoute("/users")
+    .Returns((req, res) =>
+    {
+        var posted = req.Body.ToJson<User>()!;
+        var created = posted with { Id = users.Max(u => u.Id) + 1 };
+
+        users.Add(created);
+        res.Created(created, location: $"/users/{created.Id}");
+    });
+```
+
+For a flow where the *same* endpoint must answer differently as things progress - queued, then
+running, then complete - use a scenario instead:
+
+```csharp
+fortitude.Accepts().Get().HttpRoute("/jobs/1")
+    .InScenario("job").WhenState("Started").ThenState("Running")
+    .Returns((req, res) => res.Ok(new { status = "queued" }));
+
+fortitude.Accepts().Get().HttpRoute("/jobs/1")
+    .InScenario("job").WhenState("Running")
+    .Returns((req, res) => res.Ok(new { status = "complete" }));
 ```
 
 ### Integrate With Your Application
