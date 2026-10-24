@@ -369,3 +369,41 @@ fortitude.Accepts().Get().RouteStartsWith("/")
     .Priority(-100)
     .Returns((req, res) => res.NotFound("no handler for this route"));
 ```
+
+## Injecting faults
+
+An error status is the easy case for a client to handle. `ReturnsFault` produces the harder
+ones: a dependency that goes away mid-request, or answers with something unusable.
+
+```csharp
+fortitude.Accepts().Get().HttpRoute("/users").ReturnsFault(HttpFault.ConnectionReset);
+```
+
+| Fault | What the caller sees |
+|---|---|
+| `ConnectionReset` | The connection is aborted with no response at all - a socket error, not a status code. In intercept mode this surfaces as `HttpRequestException`. |
+| `EmptyBody` | A success status with no content, where content was expected. |
+| `MalformedJson` | `application/json` whose body is truncated mid-object and will not parse. |
+| `RandomBytes` | `application/json` whose body is binary noise. |
+
+To fail only some of the time, `FailsRandomly` wraps the normal responder:
+
+```csharp
+fortitude.Accepts().Get().HttpRoute("/users")
+    .FailsRandomly(0.2)                       // 20% of calls get a 500
+    .Returns((req, res) => res.Ok(users));
+```
+
+The failure response is configurable, which is handy for rate limiting:
+
+```csharp
+.FailsRandomly(0.1, (req, res) => res.TooManyRequests("slow down", retryAfterSeconds: 30))
+```
+
+Faults combine with the other modifiers, so a handler can fail the first call and then behave:
+
+```csharp
+fortitude.Accepts().Get().HttpRoute("/users")
+    .Once()
+    .ReturnsFault(HttpFault.ConnectionReset);
+```

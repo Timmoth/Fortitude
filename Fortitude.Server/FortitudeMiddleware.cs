@@ -156,6 +156,14 @@ public class FortitudeMiddleware(
     /// </summary>
     private static async Task WriteResponse(HttpContext ctx, FortitudeResponse response)
     {
+        // A simulated reset has to happen at the connection level: there is no status code
+        // that represents "the server vanished".
+        if (response.Fault == HttpFault.ConnectionReset)
+        {
+            ctx.Abort();
+            return;
+        }
+
         ctx.Response.StatusCode = response.Status;
 
         // Applies even to an empty body: a 204 or 304 may still need to declare its type.

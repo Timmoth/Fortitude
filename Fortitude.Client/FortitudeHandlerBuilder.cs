@@ -36,6 +36,8 @@ public class FortitudeHandlerBuilder
     private TimeSpan? _delayMax;
     private int? _maxCalls;
     private int _priority;
+    private double _failureProbability;
+    private Action<FortitudeRequest, FortitudeResponse>? _onFailure;
 
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandlerBuilder" />.
@@ -410,6 +412,44 @@ public class FortitudeHandlerBuilder
 
     #endregion
 
+    #region Faults
+
+    /// <summary>
+    ///     Returns a transport-level failure for every matching request.
+    /// </summary>
+    /// <param name="fault">The failure to simulate.</param>
+    public FortitudeHandler ReturnsFault(HttpFault fault)
+    {
+        return Returns((_, res) => res.WithFault(fault));
+    }
+
+    /// <summary>
+    ///     Fails a proportion of matching requests, passing the rest to the normal responder.
+    /// </summary>
+    /// <param name="probability">Chance of failure, between 0 and 1.</param>
+    /// <param name="onFailure">How to fail. Defaults to a 500.</param>
+    /// <remarks>
+    ///     Call before <see cref="Returns(Action{FortitudeRequest, FortitudeResponse})" />:
+    ///     <code>
+    ///     fortitude.Accepts().Get().HttpRoute("/flaky")
+    ///         .FailsRandomly(0.2)
+    ///         .Returns((req, res) => res.Ok(data));
+    ///     </code>
+    /// </remarks>
+    public FortitudeHandlerBuilder FailsRandomly(
+        double probability,
+        Action<FortitudeRequest, FortitudeResponse>? onFailure = null)
+    {
+        if (probability is < 0 or > 1)
+            throw new ArgumentOutOfRangeException(nameof(probability), "Probability must be between 0 and 1.");
+
+        _failureProbability = probability;
+        _onFailure = onFailure ?? ((_, res) => res.InternalServerError());
+        return this;
+    }
+
+    #endregion
+
     #region Latency
 
     /// <summary>
@@ -512,6 +552,8 @@ public class FortitudeHandlerBuilder
     {
         if (responder == null) throw new ArgumentNullException(nameof(responder));
 
+        responder = WrapWithRandomFailure(responder);
+
         var handler = new FortitudeHandler(
             _methods,
             _route,
@@ -559,6 +601,27 @@ public class FortitudeHandlerBuilder
 
         _client?.AddHandler(handler);
         return handler;
+    }
+
+    /// <summary>
+    ///     Wraps a responder so a configured proportion of calls fail instead.
+    /// </summary>
+    private Action<FortitudeRequest, FortitudeResponse> WrapWithRandomFailure(
+        Action<FortitudeRequest, FortitudeResponse> responder)
+    {
+        if (_failureProbability <= 0 || _onFailure == null)
+            return responder;
+
+        var probability = _failureProbability;
+        var onFailure = _onFailure;
+
+        return (req, res) =>
+        {
+            if (Random.Shared.NextDouble() < probability)
+                onFailure(req, res);
+            else
+                responder(req, res);
+        };
     }
 
     #endregion

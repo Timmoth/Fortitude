@@ -8,6 +8,38 @@ using Microsoft.AspNetCore.WebUtilities;
 namespace Fortitude.Client;
 
 /// <summary>
+///     A transport-level failure a handler can return instead of a well-formed response, for
+///     exercising a client's resilience to a misbehaving dependency.
+/// </summary>
+public enum HttpFault
+{
+    /// <summary>No fault: the response is sent normally.</summary>
+    None = 0,
+
+    /// <summary>
+    ///     The connection is aborted without a response. The caller sees a socket error rather
+    ///     than a status code — what a crashed or firewalled dependency looks like.
+    /// </summary>
+    ConnectionReset = 1,
+
+    /// <summary>
+    ///     A successful status with no body at all, where the caller expects content.
+    /// </summary>
+    EmptyBody = 2,
+
+    /// <summary>
+    ///     A response declared as <c>application/json</c> whose body is truncated and will
+    ///     fail to parse.
+    /// </summary>
+    MalformedJson = 3,
+
+    /// <summary>
+    ///     A response declared as <c>application/json</c> whose body is random bytes.
+    /// </summary>
+    RandomBytes = 4
+}
+
+/// <summary>
 ///     Represents a response returned by a Fortitude service request, including
 ///     status code, response body, headers, content type, and the originating request ID.
 /// </summary>
@@ -84,18 +116,76 @@ public sealed record FortitudeResponse
     public byte[]? Body { get; set; }
 
     /// <summary>
+    ///     A transport-level failure to simulate instead of sending this response normally.
+    /// </summary>
+    [JsonPropertyName("fault")]
+    public HttpFault Fault { get; set; } = HttpFault.None;
+
+    /// <summary>
     ///     Gets a value indicating whether the status code represents success (2xx).
     /// </summary>
     [JsonIgnore]
     public bool IsSuccessStatusCode => Status is >= 200 and <= 299;
+
+    #region Faults
+
+    /// <summary>
+    ///     Returns a transport-level failure instead of a well-formed response.
+    /// </summary>
+    /// <param name="fault">The failure to simulate.</param>
+    /// <remarks>
+    ///     <see cref="HttpFault.ConnectionReset" /> aborts the connection, so the caller sees a
+    ///     socket error rather than a status code. The others return a response that is
+    ///     syntactically valid HTTP but unusable content, which is the harder case for most
+    ///     clients to handle.
+    /// </remarks>
+    public FortitudeResponse WithFault(HttpFault fault)
+    {
+        Fault = fault;
+
+        switch (fault)
+        {
+            case HttpFault.EmptyBody:
+                Status = Status is >= 200 and <= 299 ? Status : 200;
+                ClearBody();
+                break;
+
+            case HttpFault.MalformedJson:
+                Status = Status is >= 200 and <= 299 ? Status : 200;
+                // A plausible payload cut off mid-object: valid-looking right up to the point
+                // a parser gives up.
+                Body = Encoding.UTF8.GetBytes("""{"data":{"items":[{"id":1,"name":"tru""");
+                ContentType = "application/json";
+                break;
+
+            case HttpFault.RandomBytes:
+                Status = Status is >= 200 and <= 299 ? Status : 200;
+                var noise = new byte[64];
+                Random.Shared.NextBytes(noise);
+                Body = noise;
+                ContentType = "application/json";
+                break;
+        }
+
+        return this;
+    }
+
+    #endregion
 
     #region HTTP conversion
 
     /// <summary>
     ///     Converts this instance to an <see cref="HttpResponseMessage" />.
     /// </summary>
+    /// <exception cref="HttpRequestException">
+    ///     Thrown for <see cref="HttpFault.ConnectionReset" />, which is how a reset surfaces
+    ///     to an <see cref="HttpClient" /> caller in intercept mode.
+    /// </exception>
     public HttpResponseMessage ToHttpResponseMessage()
     {
+        if (Fault == HttpFault.ConnectionReset)
+            throw new HttpRequestException("The connection was reset by the remote host (simulated by Fortitude).");
+
         var response = new HttpResponseMessage((HttpStatusCode)Status);
         response.ReasonPhrase = ReasonPhrases.GetReasonPhrase(Status);
 
