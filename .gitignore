@@ -418,3 +418,6 @@ FodyWeavers.xsd
 *.msp
 Fortitude.Server/.DS_Store
 .DS_Store
+
+# Local scratch / planning
+temp/
