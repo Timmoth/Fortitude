@@ -1,0 +1,106 @@
+name: Release
+
+# Publishes the NuGet package and the multi-arch Docker image.
+#
+# Trigger by pushing a tag of the form v10.1.3 — the leading "v" is stripped
+# for the NuGet package version and kept for the Docker tag, matching the
+# convention previously used by hand (see NOTES.md).
+#
+# Required repository secrets:
+#   NUGET_API_KEY       nuget.org push key scoped to the Fortitude package
+#   DOCKERHUB_USERNAME  Docker Hub account with push rights to aptacode/*
+#   DOCKERHUB_TOKEN     Docker Hub access token
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, without the leading v (e.g. 10.1.3)'
+        required: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  IMAGE: aptacode/fortitude-server
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - id: resolve
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing version $VERSION"
+
+  nuget:
+    name: Publish NuGet package
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test before publishing
+        run: dotnet test Fortitude.Tests/Fortitude.Tests.csproj -c Release
+
+      # PackageVersion is overridden here so the tag is the single source of
+      # truth; the value in the csproj is only a local-build fallback.
+      - name: Pack
+        run: >
+          dotnet pack Fortitude.Client/Fortitude.Client.csproj
+          -c Release
+          -p:PackageVersion=${{ needs.version.outputs.version }}
+          -o ./artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: ./artifacts/*
+
+      # The .snupkg symbol package sitting alongside is pushed automatically.
+      - name: Push to nuget.org
+        run: >
+          dotnet nuget push "./artifacts/*.nupkg"
+          --api-key ${{ secrets.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+  docker:
+    name: Publish Docker image
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:v${{ needs.version.outputs.version }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

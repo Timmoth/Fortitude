@@ -19,6 +19,7 @@
         <Title>Fortitude</Title>
         <GenerateDocumentationFile>True</GenerateDocumentationFile>
         <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
 
     <ItemGroup>

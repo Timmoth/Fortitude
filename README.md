@@ -5,6 +5,14 @@ _Fortitude spins up a local mock server so you can fluently configure HTTP route
   <img src="./docs/banner.png" width="240" alt="Fortitude Banner"/>
 </p>
 
+<p align="center">
+  <a href="https://github.com/Timmoth/Fortitude/actions/workflows/ci.yml"><img src="https://github.com/Timmoth/Fortitude/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://www.nuget.org/packages/Fortitude"><img src="https://img.shields.io/nuget/v/Fortitude.svg" alt="NuGet"/></a>
+  <a href="https://www.nuget.org/packages/Fortitude"><img src="https://img.shields.io/nuget/dt/Fortitude.svg" alt="NuGet downloads"/></a>
+  <a href="https://hub.docker.com/r/aptacode/fortitude-server"><img src="https://img.shields.io/docker/pulls/aptacode/fortitude-server.svg" alt="Docker pulls"/></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/Timmoth/Fortitude.svg" alt="License"/></a>
+</p>
+
 [NuGet](https://www.nuget.org/packages/Fortitude) - 
 [Docker](https://hub.docker.com/r/aptacode/fortitude-server)
 
