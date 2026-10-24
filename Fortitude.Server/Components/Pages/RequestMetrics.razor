@@ -7,7 +7,13 @@
 <div class="max-w-6xl mx-auto p-4 space-y-6">
     <div class="bg-white shadow rounded-lg p-6 flex justify-between items-center">
         <div>
-            <p class="text-gray-700"><span class="font-medium">Total Requests:</span> @Tracker.TotalRequests</p>
+            <p class="text-gray-700">
+                <span class="font-medium">Total Requests:</span> @Tracker.TotalRequests
+                @if (Tracker.TotalRequests > Tracker.RetainedRequests)
+                {
+                    <span class="text-gray-500 text-sm">(showing the most recent @Tracker.RetainedRequests)</span>
+                }
+            </p>
         </div>
         <div>
             <p class="text-gray-700"><span class="font-medium">Clients Connected:</span> @Clients.Count</p>

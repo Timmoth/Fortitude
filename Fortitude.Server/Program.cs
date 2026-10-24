@@ -51,6 +51,9 @@ public class Program
                 }
         }
 
+        var settingsForStartup = new Settings();
+        builder.Configuration.GetSection("Settings").Bind(settingsForStartup);
+
         var portsEnv = Environment.GetEnvironmentVariable("PORTS");
         var singlePortEnv = Environment.GetEnvironmentVariable("PORT"); // fallback single port
         builder.Services.Configure<Settings>(
@@ -105,7 +108,13 @@ public class Program
             builder.Configuration
         );
 
-        builder.Services.AddSignalR();
+        // SignalR caps received messages at 32 KB by default, which silently turns any
+        // larger request or response body into a gateway timeout. A mock server has to be
+        // able to carry realistic payloads.
+        builder.Services.AddSignalR(options =>
+        {
+            options.MaximumReceiveMessageSize = settingsForStartup.MaxMessageSizeBytes;
+        });
         builder.Services.AddSingleton<RequestTracker>();
         builder.Services.AddSingleton<ConnectedClientService>();
 
@@ -227,6 +236,16 @@ public class Settings
     ///     On by default.
     /// </summary>
     public bool HotReload { get; set; } = true;
+
+    /// <summary>
+    ///     Largest request or response body, in bytes, that can be relayed between the server
+    ///     and a connected client. Defaults to 32 MB.
+    /// </summary>
+    /// <remarks>
+    ///     Bodies travel over SignalR, which caps received messages at 32 KB unless told
+    ///     otherwise — small enough that an ordinary JSON fixture would fail as a timeout.
+    /// </remarks>
+    public long MaxMessageSizeBytes { get; set; } = 32L * 1024 * 1024;
 
     /// <summary>
     ///     Serve the live monitoring and YAML editing UI at <c>/fortitude</c>. On by default.

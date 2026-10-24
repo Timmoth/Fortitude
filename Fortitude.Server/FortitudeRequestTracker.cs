@@ -1,57 +1,120 @@
-using System.Collections.Concurrent;
 using Fortitude.Client;
 
 namespace Fortitude.Server;
 
+/// <summary>
+///     Keeps a bounded, in-memory history of requests and their responses for the live UI.
+/// </summary>
+/// <remarks>
+///     This is a diagnostic buffer, not an audit log: only the most recent
+///     <see cref="Capacity" /> exchanges are retained. A response is discarded together with
+///     the request it belongs to, so a long-running server holds a fixed amount of memory.
+/// </remarks>
 public class RequestTracker
 {
-    // Limit how many requests we keep in memory
-    private const int MaxRequests = 1000;
+    /// <summary>How many recent request/response pairs are retained.</summary>
+    public const int Capacity = 1000;
 
-    // Map requestId -> response
-    private readonly ConcurrentDictionary<Guid, FortitudeResponse> _responses = new();
+    private readonly object _lock = new();
+    private readonly Queue<FortitudeRequest> _requests = new();
+    private readonly Dictionary<Guid, FortitudeResponse> _responses = new();
 
-    // Queue of requests
-    public ConcurrentQueue<FortitudeRequest> Requests { get; } = new();
+    private long _totalRequests;
 
-    // Total requests seen
-    public int TotalRequests => Requests.Count;
+    /// <summary>
+    ///     Snapshot of the retained requests, oldest first.
+    /// </summary>
+    public IReadOnlyList<FortitudeRequest> Requests
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _requests.ToArray();
+            }
+        }
+    }
 
+    /// <summary>
+    ///     Every request seen since start, including ones since evicted from the buffer.
+    /// </summary>
+    public long TotalRequests => Interlocked.Read(ref _totalRequests);
+
+    /// <summary>
+    ///     How many requests are currently retained, at most <see cref="Capacity" />.
+    /// </summary>
+    public int RetainedRequests
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _requests.Count;
+            }
+        }
+    }
+
+    /// <summary>Raised whenever a request or response is recorded.</summary>
     public event Action? OnUpdate;
 
-    // Add a request
+    /// <summary>Records an incoming request, evicting the oldest if the buffer is full.</summary>
     public void Add(FortitudeRequest req)
     {
-        Requests.Enqueue(req);
+        if (req == null) return;
 
-        // Limit queue size
-        while (Requests.Count > MaxRequests)
-            Requests.TryDequeue(out _);
+        Interlocked.Increment(ref _totalRequests);
+
+        lock (_lock)
+        {
+            _requests.Enqueue(req);
+
+            // Drop the response alongside its request; keeping it would grow without bound.
+            while (_requests.Count > Capacity)
+            {
+                var evicted = _requests.Dequeue();
+                _responses.Remove(evicted.RequestId);
+            }
+        }
 
         OnUpdate?.Invoke();
     }
 
-    // Add a response
+    /// <summary>Records the response to a previously tracked request.</summary>
     public void Add(FortitudeResponse response)
     {
         if (response == null) return;
 
-        // Store response in dictionary keyed by RequestId
-        _responses[response.RequestId] = response;
+        lock (_lock)
+        {
+            // If the request has already been evicted there is nothing to attach this to,
+            // and storing it would reintroduce the unbounded growth.
+            if (!_requests.Any(r => r.RequestId == response.RequestId))
+                return;
+
+            _responses[response.RequestId] = response;
+        }
 
         OnUpdate?.Invoke();
     }
 
-    // Get response for a request (null if not yet received)
+    /// <summary>The response for a request, or null if none has been recorded yet.</summary>
     public FortitudeResponse? GetResponse(Guid requestId)
     {
-        _responses.TryGetValue(requestId, out var response);
-        return response;
+        lock (_lock)
+        {
+            return _responses.GetValueOrDefault(requestId);
+        }
     }
 
+    /// <summary>Clears the buffer. Does not reset <see cref="TotalRequests" />.</summary>
     public void Clear()
     {
-        Requests.Clear();
-        _responses.Clear();
+        lock (_lock)
+        {
+            _requests.Clear();
+            _responses.Clear();
+        }
+
+        OnUpdate?.Invoke();
     }
 }

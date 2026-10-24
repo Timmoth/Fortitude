@@ -158,15 +158,26 @@ public class FortitudeMiddleware(
     {
         ctx.Response.StatusCode = response.Status;
 
+        // Applies even to an empty body: a 204 or 304 may still need to declare its type.
+        // Written before the headers so an explicit Content-Type header, being the more
+        // specific instruction, takes precedence over the response's ContentType property.
+        if (!string.IsNullOrEmpty(response.ContentType))
+            ctx.Response.ContentType = response.ContentType;
+
+        // The handler is the authority on what the mocked service returns, so its headers
+        // replace anything already set. Previously they were skipped if the key existed,
+        // which made Content-Type and other server-set headers impossible to override.
         foreach (var header in response.Headers)
-            if (!ctx.Response.Headers.ContainsKey(header.Key))
-                ctx.Response.Headers[header.Key] = header.Value;
+        {
+            // Kestrel derives these from the body; setting them by hand corrupts the response.
+            if (string.Equals(header.Key, "Content-Length", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(header.Key, "Transfer-Encoding", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            ctx.Response.Headers[header.Key] = header.Value;
+        }
 
         if (response.Body is { Length: > 0 })
-        {
-            ctx.Response.ContentType = response.ContentType ?? "application/octet-stream";
-            await ctx.Response.Body.WriteAsync(response.Body, 0, response.Body.Length)
-                .ConfigureAwait(false);
-        }
+            await ctx.Response.Body.WriteAsync(response.Body).ConfigureAwait(false);
     }
 }
