@@ -32,6 +32,8 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 ## Docs
 
 *   [mocking-apis](./docs/mocking.md)
+*   [configuration](./docs/configuration.md)
+*   [architecture](./docs/architecture.md)
 *   [local-development](./docs/local-development.md)
 *   [aspire-integration-tests](./docs/aspire-integration-tests.md)
 *   [handler-builder-usage](./docs/handler-builder-usage.md)
@@ -101,9 +103,45 @@ dotnet test ./Examples/Fortitude.Example.Tests
 dotnet add package Fortitude
 ```
 
+## Quick start
+
+```bash
+dotnet add package Fortitude
+```
+
+No server, no configuration - intercept the calls your code makes and assert on them:
+
+```csharp
+[Fact]
+public async Task TheClientSendsTheRightRequest()
+{
+    var fortitude = FortitudeClient.Create(output);
+
+    var handler = fortitude.Accepts()
+        .Get()
+        .HttpRoute("/users/{id}")
+        .Returns((req, res) => res.Ok(new User(1, "Alice")));
+
+    var services = new ServiceCollection();
+    services.AddFortitudeClient(fortitude);          // every HttpClient is now intercepted
+    services.AddHttpClient<UserClient>();
+
+    var users = services.BuildServiceProvider().GetRequiredService<UserClient>();
+
+    var user = await users.GetAsync(1);
+
+    Assert.Equal("Alice", user.Name);
+    handler.ShouldHaveReceivedOnce();
+    fortitude.VerifyNoUnmatchedRequests();           // nothing called that you did not set up
+}
+```
+
+That is the whole loop. The rest of this page covers running Fortitude as a real server, so
+your service makes genuine HTTP calls and you can test it as a black box.
+
 ## Using Fortitude in Tests
 
-There are **two ways** to write tests with Fortitude:
+There are **three ways** to write tests with Fortitude:
 
 ### 1. External Mock Server Mode
 
@@ -243,6 +281,25 @@ handlers:
 ```
 In this example, any POST /users request whose JSON body contains an email of alice@example.com will receive a 201 Created response with a mock user object.
 
+## Which handler answers
+
+Several handlers can match the same request. The one that answers is:
+
+1. The **highest `Priority(n)`**, which defaults to `0`.
+2. Among equal priorities, the **most recently registered**.
+
+That default is deliberate: a test can override a handler set up in a fixture or base class
+just by registering its own afterwards. A handler that has used up a `Times(n)` allowance, or
+whose scenario is in the wrong state, does not match at all and steps aside for the next one.
+
+**YAML handlers are matched first**, on the server, before a request is forwarded to any
+connected client. A YAML definition therefore wins over a client-registered handler for the
+same route, and the client never sees the request.
+
+If nothing matches, the request gets `501 Not Implemented` and is recorded - call
+`VerifyNoUnmatchedRequests()` to turn that into a clear test failure rather than a confusing
+response.
+
 ## Live Server
 
 When you start the Fortitude Server a Blazor front end that can be used to monitor all traffic will be accesible, for example at: 
@@ -312,7 +369,24 @@ A mock HTTP server for .NET that lets tests define API behavior dynamically and 
 It runs as a separate server, enabling black-box testing without modifying the SUT.
 
 **How does it compare to other Mock Servers?**  
-Fortitude allows you to define and executes handler logic directly within your test code As opposed to other mock servers which require complex static configuration be sent to the server.
+The difference that matters is where the handler logic runs. In Fortitude it runs *in your
+test*, so a response can close over test state, assert mid-flight, or compute an answer from
+the request. Most mock servers want a static description uploaded to them instead.
+
+| | Fortitude | WireMock.Net | MockServer | Prism |
+|---|---|---|---|---|
+| Handler logic runs in your test | yes | partly (callbacks, in-process only) | no | no |
+| Standalone server for black-box tests | yes | yes | yes | yes |
+| In-process interception | yes | yes | no | no |
+| Config without writing code | YAML, admin API | JSON | JSON/Java | OpenAPI |
+| Generate a mock from OpenAPI | yes | no | yes | yes (its whole purpose) |
+| Record from a real service | yes | yes | yes | no |
+| Stateful scenarios | yes | yes | yes | no |
+| Fault injection | yes | yes | yes | limited |
+| Primary language | .NET | .NET | Java | Node |
+
+Prism is the better tool if all you want is "serve this OpenAPI spec". Fortitude is aimed at
+the case where the test needs to *control* the dependency, not just stand one up.
 
 **Why use a separate server instead of an intercepting HttpClient?**  
 It allows realistic HTTP testing, multi-service flows, and true black box testing.
@@ -355,6 +429,37 @@ behaviour for a single-client setup.
 Set `Settings:Broadcast=true` to force every client to receive every request regardless of port. This disables
 isolation, so only use it when a single client is connected. It is off by default.
 
+
+## Troubleshooting
+
+**`503 No Fortitude client is connected for port N`**  
+Nothing has reserved that port. Either no client is connected, or the client reserved a
+different one. `ConnectAsync` returns the URL to use - point your system under test at that
+rather than at the base URL.
+
+**`501 Not Implemented`**  
+The request arrived but matched no handler. Call `VerifyNoUnmatchedRequests()` to see what
+arrived alongside what was registered, including handlers that are exhausted or waiting on a
+scenario state.
+
+**`504 Gateway Timeout`**  
+The client did not answer within `Settings:ResponseTimeoutSeconds` (5 by default). Expected if
+you set a longer `WithDelay`; otherwise raise the setting, or check whether the responder is
+blocking or you are paused at a breakpoint.
+
+**Concurrent tests see each other's traffic**  
+Start the server with a port range (`PORTS=5000-5005`) so each client gets its own port, and
+make sure `Settings:Broadcast` is not set to `true`. The server logs a warning when a client
+cannot reserve a port.
+
+**A YAML handler is being ignored**  
+Check the live UI at `/fortitude`, or `GET /fortitude/api/handlers` - a file that failed to
+parse is listed with its error. Remember the file must end in `.yaml` or `.yml`, and that a
+later file wins for the same route.
+
+**A templated value comes out as the wrong type**  
+Quoting decides it: `count: 3` is a number, `count: "3"` is a string. See
+[yaml-handlers](./docs/yaml-handlers.md).
 
 ## **Operation Fortitude in history**
 
