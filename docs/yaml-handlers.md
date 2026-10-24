@@ -195,6 +195,56 @@ From there you can:
 - Enable / disable handlers
 - Apply changes instantly without restarting the server
 
+## Built-in template functions
+
+Alongside the four request sources, templates can call a few built-ins for values that must
+vary per response:
+
+| Expression | Renders |
+|---|---|
+| `{{uuid}}` or `{{guid}}` | A fresh GUID on every request |
+| `{{now}}` | The current UTC time, ISO 8601 |
+| `{{now.unix}}` / `{{now.unixms}}` | Unix timestamp in seconds / milliseconds |
+| `{{now.date}}` / `{{now.time}}` | `2026-10-24` / `14:30:00` |
+| `{{now.<format>}}` | Any .NET date format string, e.g. `{{now.yyyy-MM}}` |
+| `{{randomInt 1 100}}` | A random integer in the inclusive range |
+
+```yaml
+response:
+  status: 201
+  headers:
+    X-Request-Id: "{{uuid}}"
+  body:
+    json:
+      id: "{{randomInt 1000 9999}}"
+      createdAt: "{{now}}"
+```
+
+An unknown function renders as an empty string, the same as an unresolvable path.
+
+## Serving a body from a file
+
+Large fixtures do not belong inline. `file:` reads the body from disk, resolved relative to the
+handler definition file:
+
+```yaml
+handlers:
+  - match:
+      route: /users
+    response:
+      status: 200
+      body:
+        file: fixtures/users.json
+```
+
+The content type is inferred from the extension (`.json`, `.xml`, `.html`, `.csv`, `.txt`,
+`.pdf`, `.png`, `.jpg`, `.gif`, `.yaml`), and `contentType:` overrides it. Text formats are
+templated just like an inline body, so a fixture can still interpolate `{{route.id}}`; binary
+formats are served byte for byte.
+
+A missing or unreadable file produces a `500` naming the path, rather than taking down the
+handler.
+
 ## How values are typed
 
 YAML gives Fortitude every scalar as text, so the JSON type is inferred when the response is

@@ -70,7 +70,13 @@ public static class FortitudeYamlLoader
     {
         return Regex.Replace(template, @"\{\{\s*(.*?)\s*\}\}", match =>
         {
-            var path = match.Groups[1].Value.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            var expression = match.Groups[1].Value.Trim();
+            if (expression.Length == 0) return string.Empty;
+
+            // An expression is either a dotted path into the request, or a built-in function
+            // with optional space-separated arguments.
+            var parts = expression.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var path = parts[0].Split('.', StringSplitOptions.RemoveEmptyEntries);
             if (path.Length == 0) return string.Empty;
 
             object? current = path[0] switch
@@ -81,6 +87,9 @@ public static class FortitudeYamlLoader
                 "route" => ctx.RouteValues,
                 _ => null
             };
+
+            if (current == null)
+                return RenderFunction(path, parts.Skip(1).ToArray());
 
             foreach (var segment in path.Skip(1))
             {
@@ -97,6 +106,48 @@ public static class FortitudeYamlLoader
 
             return current?.ToString() ?? string.Empty;
         });
+    }
+
+    /// <summary>
+    ///     Evaluates a built-in template function, for values that must vary per response.
+    /// </summary>
+    /// <param name="path">The function name, split on dots, e.g. <c>now.unix</c>.</param>
+    /// <param name="args">Space-separated arguments, e.g. the bounds of <c>randomInt</c>.</param>
+    /// <returns>The rendered value, or an empty string if the function is unknown.</returns>
+    private static string RenderFunction(string[] path, string[] args)
+    {
+        var name = path[0].ToLowerInvariant();
+        var qualifier = path.Length > 1 ? path[1].ToLowerInvariant() : null;
+
+        switch (name)
+        {
+            case "uuid":
+            case "guid":
+                return Guid.NewGuid().ToString();
+
+            case "now":
+                var now = DateTimeOffset.UtcNow;
+                return qualifier switch
+                {
+                    "unix" => now.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture),
+                    "unixms" => now.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+                    "date" => now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    "time" => now.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
+                    null or "iso8601" => now.ToString("O", CultureInfo.InvariantCulture),
+                    _ => now.ToString(path[1], CultureInfo.InvariantCulture)
+                };
+
+            case "randomint":
+                var min = args.Length > 0 && int.TryParse(args[0], out var parsedMin) ? parsedMin : 0;
+                var max = args.Length > 1 && int.TryParse(args[1], out var parsedMax) ? parsedMax : int.MaxValue;
+                if (max < min) (min, max) = (max, min);
+                return Random.Shared.Next(min, max == int.MaxValue ? max : max + 1)
+                    .ToString(CultureInfo.InvariantCulture);
+
+            default:
+                // Unknown names render empty, matching how an unresolved path behaves.
+                return string.Empty;
+        }
     }
     
     /// <summary>
@@ -241,7 +292,7 @@ public static class FortitudeYamlLoader
             try
             {
                 var text = File.ReadAllText(file, Encoding.UTF8);
-                var handlers = FromYamlMulti(text).ToList();
+                var handlers = FromYamlMulti(text, Path.GetDirectoryName(file)).ToList();
                 results.Add(new YamlHandlerFile(file, handlers, null));
             }
             catch (Exception ex)
@@ -262,6 +313,78 @@ public static class FortitudeYamlLoader
         return LoadHandlerFiles(dir).SelectMany(f => f.Handlers);
     }
 
+    /// <summary>Content types inferred from a fixture file's extension.</summary>
+    private static readonly Dictionary<string, string> ContentTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".json"] = "application/json",
+        [".xml"] = "application/xml",
+        [".html"] = "text/html; charset=utf-8",
+        [".htm"] = "text/html; charset=utf-8",
+        [".txt"] = "text/plain; charset=utf-8",
+        [".csv"] = "text/csv",
+        [".yaml"] = "application/yaml",
+        [".yml"] = "application/yaml",
+        [".pdf"] = "application/pdf",
+        [".png"] = "image/png",
+        [".jpg"] = "image/jpeg",
+        [".jpeg"] = "image/jpeg",
+        [".gif"] = "image/gif"
+    };
+
+    /// <summary>Extensions treated as text, and therefore templated.</summary>
+    private static readonly string[] TextExtensions =
+        [".json", ".xml", ".html", ".htm", ".txt", ".csv", ".yaml", ".yml"];
+
+    /// <summary>
+    ///     Loads a fixture file into the response body.
+    /// </summary>
+    /// <remarks>
+    ///     A missing or unreadable file produces a 500 describing the problem rather than
+    ///     throwing, so one broken fixture does not take down every request the server handles.
+    /// </remarks>
+    private static void WriteFileBody(
+        FortitudeResponse res,
+        string path,
+        string? contentType,
+        string? baseDirectory,
+        TemplateContext ctx)
+    {
+        var resolved = Path.IsPathRooted(path)
+            ? path
+            : Path.GetFullPath(Path.Combine(baseDirectory ?? Directory.GetCurrentDirectory(), path));
+
+        if (!File.Exists(resolved))
+        {
+            res.InternalServerError($"Fortitude: response body file not found: {resolved}");
+            return;
+        }
+
+        var extension = Path.GetExtension(resolved);
+
+        try
+        {
+            if (TextExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            {
+                var text = File.ReadAllText(resolved, Encoding.UTF8);
+                res.Body = Encoding.UTF8.GetBytes(RenderTemplate(text, ctx));
+            }
+            else
+            {
+                res.Body = File.ReadAllBytes(resolved);
+            }
+        }
+        catch (Exception ex)
+        {
+            res.InternalServerError($"Fortitude: could not read response body file {resolved}: {ex.Message}");
+            return;
+        }
+
+        res.ContentType = contentType
+                          ?? (ContentTypesByExtension.TryGetValue(extension, out var inferred)
+                              ? inferred
+                              : "application/octet-stream");
+    }
+
     /// <summary>Flattens a YAML parse failure into a single readable line.</summary>
     private static string Describe(Exception ex)
     {
@@ -278,7 +401,7 @@ public static class FortitudeYamlLoader
     ///     Parses a single handler definition — a document with top level <c>match</c> and
     ///     <c>response</c> keys, without the enclosing <c>handlers:</c> sequence.
     /// </summary>
-    public static FortitudeHandler FromYamlSingle(string yaml)
+    public static FortitudeHandler FromYamlSingle(string yaml, string? baseDirectory = null)
     {
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -286,14 +409,14 @@ public static class FortitudeYamlLoader
             .Build();
 
         var handler = deserializer.Deserialize<HandlerDefinition>(yaml);
-        return ToHandler(handler);
+        return ToHandler(handler, baseDirectory);
     }
     
     /// <summary>
     ///     Parses a handler definition document: a <c>handlers:</c> sequence of
     ///     <c>match</c>/<c>response</c> pairs.
     /// </summary>
-    public static IEnumerable<FortitudeHandler> FromYamlMulti(string yaml)
+    public static IEnumerable<FortitudeHandler> FromYamlMulti(string yaml, string? baseDirectory = null)
     {
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -307,7 +430,7 @@ public static class FortitudeYamlLoader
 
         foreach (var handlerDef in handlerDefs)
         {
-            yield return ToHandler(handlerDef);
+            yield return ToHandler(handlerDef, baseDirectory);
         }
     }
 
@@ -376,7 +499,7 @@ public static class FortitudeYamlLoader
         return arr.EnumerateArray().Select(Convert).ToArray();
     }
 
-    private static FortitudeHandler ToHandler(HandlerDefinition handler)
+    private static FortitudeHandler ToHandler(HandlerDefinition handler, string? baseDirectory = null)
 {
     var methods = handler.Match.Methods;
     var route = handler.Match.Route;
@@ -452,6 +575,15 @@ public static class FortitudeYamlLoader
             RouteValues = string.IsNullOrEmpty(handler.Match.Route) ? new Dictionary<string, string>() : ExtractRouteValues(handler.Match.Route, req.Route)
         };
 
+        // File-backed body: takes precedence over inline text and JSON.
+        var bodyFile = handler.Response.Body?.File;
+        if (!string.IsNullOrWhiteSpace(bodyFile))
+        {
+            WriteFileBody(res, bodyFile, handler.Response.Body?.ContentType, baseDirectory, templateContext);
+            ApplyResponseHeaders(res, handler, templateContext);
+            return;
+        }
+
         // Text body
         var bodyText = handler.Response.Body?.Text;
         if (!string.IsNullOrWhiteSpace(bodyText))
@@ -471,14 +603,17 @@ public static class FortitudeYamlLoader
             res.ContentType = "application/json";
         }
 
-        // Response headers (templated too)
-        if (handler.Response.Headers != null)
-        {
-            res.Headers = handler.Response.Headers.ToDictionary(
-                kvp => kvp.Key,
-                kvp => RenderTemplate(kvp.Value, templateContext)
-            );
-        }
+        ApplyResponseHeaders(res, handler, templateContext);
+    }
+
+    static void ApplyResponseHeaders(FortitudeResponse res, HandlerDefinition definition, TemplateContext ctx)
+    {
+        if (definition.Response.Headers == null) return;
+
+        res.Headers = definition.Response.Headers.ToDictionary(
+            kvp => kvp.Key,
+            kvp => RenderTemplate(kvp.Value, ctx)
+        );
     }
     
 
@@ -629,6 +764,22 @@ public sealed record ResponseBodyDefinition
     ///     A plain text body, served as <c>text/plain</c>. Supports <c>{{ }}</c> templating.
     /// </summary>
     public string? Text { get; init; }
+
+    /// <summary>
+    ///     Path to a file whose contents become the body, resolved relative to the handler
+    ///     definition file. Keeps large fixtures out of the YAML.
+    /// </summary>
+    /// <remarks>
+    ///     The content type is inferred from the extension, and <c>{{ }}</c> templating is
+    ///     applied to text formats. Takes precedence over <see cref="Text" /> and
+    ///     <see cref="Json" />.
+    /// </remarks>
+    public string? File { get; init; }
+
+    /// <summary>
+    ///     Content type for <see cref="File" />, overriding what the extension implies.
+    /// </summary>
+    public string? ContentType { get; init; }
 }
 
 /// <summary>
