@@ -483,7 +483,7 @@ public static class FortitudeYamlLoader
     
 
 
-    return new FortitudeHandler(
+    var built = new FortitudeHandler(
         methods,
         route,
         headers,
@@ -492,6 +492,18 @@ public static class FortitudeYamlLoader
         requestPredicate,
         (Action<FortitudeRequest, FortitudeResponse>)Responder
     );
+
+    if (handler.Response.Delay is { } range)
+    {
+        built.Delay = TimeSpan.FromMilliseconds(Math.Max(0, range.MinMs));
+        built.DelayMax = TimeSpan.FromMilliseconds(Math.Max(range.MinMs, range.MaxMs));
+    }
+    else if (handler.Response.DelayMs is { } fixedDelay)
+    {
+        built.Delay = TimeSpan.FromMilliseconds(Math.Max(0, fixedDelay));
+    }
+
+    return built;
 }
 
     
@@ -579,6 +591,27 @@ public sealed record ResponseDefinition
 
     /// <summary>The response body. Omit for an empty body.</summary>
     public ResponseBodyDefinition? Body { get; init; }
+
+    /// <summary>
+    ///     Milliseconds to wait before responding, simulating a slow dependency. Ignored when
+    ///     <see cref="Delay" /> is given.
+    /// </summary>
+    public int? DelayMs { get; init; }
+
+    /// <summary>A randomised delay range, for simulating jitter.</summary>
+    public DelayDefinition? Delay { get; init; }
+}
+
+/// <summary>
+///     A randomised response delay, drawn uniformly from the given range.
+/// </summary>
+public sealed record DelayDefinition
+{
+    /// <summary>Lower bound in milliseconds.</summary>
+    public int MinMs { get; init; }
+
+    /// <summary>Upper bound in milliseconds.</summary>
+    public int MaxMs { get; init; }
 }
 
 /// <summary>

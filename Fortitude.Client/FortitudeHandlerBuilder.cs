@@ -32,6 +32,8 @@ public class FortitudeHandlerBuilder
     private Func<byte[]?, bool>? _bodyPredicate;
     private Func<FortitudeRequest, bool>? _requestPredicate;
     private string? _route;
+    private TimeSpan _delay;
+    private TimeSpan? _delayMax;
 
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandlerBuilder" />.
@@ -369,6 +371,63 @@ public class FortitudeHandlerBuilder
 
     #endregion
 
+    #region Latency
+
+    /// <summary>
+    ///     Waits before responding, simulating a slow dependency.
+    /// </summary>
+    /// <param name="delay">How long to wait.</param>
+    /// <remarks>
+    ///     Useful for exercising timeouts, retries and circuit breakers in the system under
+    ///     test. A delay longer than the server's <c>Settings:ResponseTimeoutSeconds</c>
+    ///     (5 seconds by default) is cut short by a 504.
+    /// </remarks>
+    public FortitudeHandlerBuilder WithDelay(TimeSpan delay)
+    {
+        if (delay < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(delay), "Delay cannot be negative.");
+
+        _delay = delay;
+        _delayMax = null;
+        return this;
+    }
+
+    /// <summary>
+    ///     Waits <paramref name="milliseconds" /> before responding.
+    /// </summary>
+    public FortitudeHandlerBuilder WithDelay(int milliseconds)
+    {
+        return WithDelay(TimeSpan.FromMilliseconds(milliseconds));
+    }
+
+    /// <summary>
+    ///     Waits a random time between <paramref name="min" /> and <paramref name="max" />
+    ///     before responding, simulating jitter.
+    /// </summary>
+    public FortitudeHandlerBuilder WithRandomDelay(TimeSpan min, TimeSpan max)
+    {
+        if (min < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(min), "Delay cannot be negative.");
+
+        if (max < min)
+            throw new ArgumentOutOfRangeException(nameof(max), "Maximum delay cannot be less than the minimum.");
+
+        _delay = min;
+        _delayMax = max;
+        return this;
+    }
+
+    /// <summary>
+    ///     Waits a random number of milliseconds between <paramref name="minMs" /> and
+    ///     <paramref name="maxMs" /> before responding.
+    /// </summary>
+    public FortitudeHandlerBuilder WithRandomDelay(int minMs, int maxMs)
+    {
+        return WithRandomDelay(TimeSpan.FromMilliseconds(minMs), TimeSpan.FromMilliseconds(maxMs));
+    }
+
+    #endregion
+
     #region Responder
 
     /// <summary>
@@ -388,7 +447,11 @@ public class FortitudeHandlerBuilder
             _bodyPredicate,
             _requestPredicate,
             responder
-        );
+        )
+        {
+            Delay = _delay,
+            DelayMax = _delayMax
+        };
 
         _client?.AddHandler(handler);
         return handler;
@@ -411,7 +474,11 @@ public class FortitudeHandlerBuilder
             _bodyPredicate,
             _requestPredicate,
             asyncResponder
-        );
+        )
+        {
+            Delay = _delay,
+            DelayMax = _delayMax
+        };
 
         _client?.AddHandler(handler);
         return handler;

@@ -272,3 +272,48 @@ Registers an asynchronous responder.
     res.Ok();
 })
 ```
+
+## Simulating latency
+
+`WithDelay` holds the response back, so the system under test experiences a slow dependency.
+This is how you exercise timeouts, retries and circuit breakers.
+
+```csharp
+fortitude.Accepts()
+    .Get()
+    .HttpRoute("/users")
+    .WithDelay(TimeSpan.FromSeconds(2))
+    .Returns((req, res) => res.Ok(users));
+```
+
+`WithDelay` also takes milliseconds directly, and `WithRandomDelay` draws a fresh delay from a
+range on every request to simulate jitter:
+
+```csharp
+.WithDelay(250)                 // always 250ms
+.WithRandomDelay(100, 500)      // uniform between 100ms and 500ms
+```
+
+Two things worth knowing:
+
+- The server gives up on a handler after `Settings:ResponseTimeoutSeconds` (5 seconds by
+  default) and returns `504`. A delay beyond that is cut short - which is exactly how you test
+  a client's timeout handling, but raise the setting if it is not what you meant.
+- `WaitForRequestAsync` completes as soon as the request arrives, before the delay elapses, so
+  asserting that the dependency was called does not cost you the simulated latency.
+
+In YAML the same options live on the response:
+
+```yaml
+response:
+  status: 200
+  delayMs: 2000
+```
+
+```yaml
+response:
+  status: 200
+  delay:
+    minMs: 100
+    maxMs: 500
+```

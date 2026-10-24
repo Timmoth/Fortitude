@@ -71,6 +71,25 @@ public class FortitudeHandler
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    ///     Artificial latency applied before responding, simulating a slow dependency.
+    /// </summary>
+    /// <remarks>
+    ///     When <see cref="DelayMax" /> is also set, the actual delay is drawn uniformly from
+    ///     <see cref="Delay" />..<see cref="DelayMax" />.
+    ///     <para>
+    ///         A delay longer than the server's <c>Settings:ResponseTimeoutSeconds</c> will be
+    ///         cut short by a 504, which is useful for testing timeout handling but is worth
+    ///         knowing about when it is not what you intended.
+    ///     </para>
+    /// </remarks>
+    public TimeSpan Delay { get; set; }
+
+    /// <summary>
+    ///     Upper bound for a randomised delay. Null means <see cref="Delay" /> is used exactly.
+    /// </summary>
+    public TimeSpan? DelayMax { get; set; }
+
+    /// <summary>
     ///     Thread-safe list of received requests.
     /// </summary>
     public IReadOnlyList<FortitudeRequest> ReceivedRequests => _receivedRequests.ToArray();
@@ -115,6 +134,12 @@ public class FortitudeHandler
         _receivedRequests.Enqueue(req);
         NotifyWaiters(req);
 
+        // Waiters are notified before the delay: a test asserting "the SUT called us" should
+        // not have to sit through the latency being simulated.
+        var delay = NextDelay();
+        if (delay > TimeSpan.Zero)
+            await Task.Delay(delay).ConfigureAwait(false);
+
         var response = new FortitudeResponse(req.RequestId);
 
         try
@@ -127,6 +152,17 @@ public class FortitudeHandler
         }
 
         return response;
+    }
+
+    /// <summary>
+    ///     Resolves the latency to apply to this response.
+    /// </summary>
+    private TimeSpan NextDelay()
+    {
+        if (DelayMax is not { } max || max <= Delay)
+            return Delay;
+
+        return TimeSpan.FromTicks(Random.Shared.NextInt64(Delay.Ticks, max.Ticks + 1));
     }
 
     /// <summary>
