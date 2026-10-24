@@ -25,6 +25,9 @@ public class FortitudeHandler
     private readonly object _waitersLock = new();
     private readonly Func<FortitudeRequest, bool>? _requestPredicate;
 
+    /// <summary>Requests handled so far, used to enforce <see cref="MaxCalls" />.</summary>
+    private int _callCount;
+
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandler" /> with an asynchronous responder.
     /// </summary>
@@ -71,6 +74,38 @@ public class FortitudeHandler
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    ///     How many requests this handler will answer before it stops matching. Null means
+    ///     unlimited.
+    /// </summary>
+    /// <remarks>
+    ///     Lets a later handler take over, which is how "fail the first call, succeed on the
+    ///     retry" scenarios are expressed.
+    ///     <para>
+    ///         Under genuinely concurrent requests the limit is best effort: two requests can
+    ///         both pass the check before either is counted. Sequential use, which is the
+    ///         normal case in tests, is exact.
+    ///     </para>
+    /// </remarks>
+    public int? MaxCalls { get; set; }
+
+    /// <summary>
+    ///     Requests this handler has answered.
+    /// </summary>
+    public int CallCount => Volatile.Read(ref _callCount);
+
+    /// <summary>
+    ///     Whether the handler has answered <see cref="MaxCalls" /> requests and will no
+    ///     longer match.
+    /// </summary>
+    public bool IsExhausted => MaxCalls is { } max && CallCount >= max;
+
+    /// <summary>
+    ///     Match precedence. Higher wins; handlers of equal priority are tried in reverse
+    ///     registration order, so the most recently registered answers first.
+    /// </summary>
+    public int Priority { get; set; }
+
+    /// <summary>
     ///     Artificial latency applied before responding, simulating a slow dependency.
     /// </summary>
     /// <remarks>
@@ -100,6 +135,7 @@ public class FortitudeHandler
     public bool Matches(FortitudeRequest req)
     {
         if (!Enabled) return false;
+        if (IsExhausted) return false;
         if (_methods.Any() && !_methods.Contains(req.Method)) return false;
 
         if (_routeTemplate != null)
@@ -132,6 +168,7 @@ public class FortitudeHandler
         if (req == null) throw new ArgumentNullException(nameof(req));
 
         _receivedRequests.Enqueue(req);
+        Interlocked.Increment(ref _callCount);
         NotifyWaiters(req);
 
         // Waiters are notified before the delay: a test asserting "the SUT called us" should
@@ -321,6 +358,31 @@ public class FortitudeHandler
             parts.Add("(Body: predicate)");
 
         return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    ///     Selects the handler that should answer a request: the highest priority match,
+    ///     and among equals the most recently registered.
+    /// </summary>
+    /// <param name="handlers">Candidate handlers, in registration order.</param>
+    /// <param name="request">The request to match.</param>
+    /// <returns>The handler to invoke, or null if none matched.</returns>
+    public static FortitudeHandler? SelectFor(IReadOnlyList<FortitudeHandler> handlers, FortitudeRequest request)
+    {
+        FortitudeHandler? best = null;
+
+        // Walk backwards so that, at equal priority, the last registered handler is found
+        // first and strictly-greater keeps it.
+        for (var i = handlers.Count - 1; i >= 0; i--)
+        {
+            var handler = handlers[i];
+
+            if (!handler.Matches(request)) continue;
+            if (best == null || handler.Priority > best.Priority)
+                best = handler;
+        }
+
+        return best;
     }
 
     /// <summary>

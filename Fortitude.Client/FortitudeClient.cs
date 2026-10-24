@@ -206,13 +206,10 @@ public class FortitudeClient : IAsyncDisposable
         if (_connection == null)
             return;
 
-        var handlers = _handlerSnapshot;
+        var handler = FortitudeHandler.SelectFor(_handlerSnapshot, request);
 
-        for (var i = handlers.Length - 1; i >= 0; i--)
+        if (handler != null)
         {
-            var handler = handlers[i];
-            if (!handler.Matches(request)) continue;
-
             var response = await handler.HandleRequestAsync(request);
 
             _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
@@ -241,13 +238,10 @@ public class FortitudeClient : IAsyncDisposable
 
         var req = await FortitudeRequest.FromHttpRequestMessage(request, requestId).ConfigureAwait(false);
 
-        var handlers = _handlerSnapshot;
+        var handler = FortitudeHandler.SelectFor(_handlerSnapshot, req);
 
-        for (var i = handlers.Length - 1; i >= 0; i--)
+        if (handler != null)
         {
-            var handler = handlers[i];
-            if (!handler.Matches(req)) continue;
-
             var response = await handler.HandleRequestAsync(req);
 
             _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());

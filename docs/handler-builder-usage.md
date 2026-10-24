@@ -317,3 +317,55 @@ response:
     minMs: 100
     maxMs: 500
 ```
+
+## Limiting how many times a handler answers
+
+`Times(n)`, and its shorthands `Once()` and `Twice()`, stop a handler matching once it has
+answered that many requests. An exhausted handler steps aside and the next matching one takes
+over, which is how retry behaviour is expressed:
+
+```csharp
+// Registered first, so it is the fallback.
+fortitude.Accepts().Get().HttpRoute("/flaky")
+    .Returns((req, res) => res.Ok("recovered"));
+
+// Registered later, so it wins - until it has answered twice.
+fortitude.Accepts().Get().HttpRoute("/flaky")
+    .Twice()
+    .Returns((req, res) => res.InternalServerError("down"));
+```
+
+The first two calls get a 500, the third gets "recovered". `CallCount` and `IsExhausted` on the
+returned handler let you assert on it afterwards.
+
+With no fallback registered, requests after the limit fall through to `501 Not Implemented`.
+
+Under genuinely concurrent requests the limit is best effort - two requests can both pass the
+check before either is counted. Sequential use, the normal case in tests, is exact.
+
+## Returning a different response each time
+
+`ReturnsInSequence` walks a list of responders, repeating the last one once the sequence runs
+out. Useful for polling flows:
+
+```csharp
+fortitude.Accepts().Get().HttpRoute("/jobs/1")
+    .ReturnsInSequence(
+        (req, res) => res.Ok(new { status = "pending" }),
+        (req, res) => res.Ok(new { status = "pending" }),
+        (req, res) => res.Ok(new { status = "complete" }));
+```
+
+## Controlling which handler wins
+
+When several handlers match the same request, the most recently registered one answers. That
+default is usually what you want - it lets a test override a fixture set up in a base class.
+
+`Priority(n)` overrides it explicitly. Higher wins, the default is `0`, and negatives are
+useful for a catch-all that should only apply when nothing else matches:
+
+```csharp
+fortitude.Accepts().Get().RouteStartsWith("/")
+    .Priority(-100)
+    .Returns((req, res) => res.NotFound("no handler for this route"));
+```

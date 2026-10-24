@@ -34,6 +34,8 @@ public class FortitudeHandlerBuilder
     private string? _route;
     private TimeSpan _delay;
     private TimeSpan? _delayMax;
+    private int? _maxCalls;
+    private int _priority;
 
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandlerBuilder" />.
@@ -371,6 +373,43 @@ public class FortitudeHandlerBuilder
 
     #endregion
 
+    #region Call limits and precedence
+
+    /// <summary>
+    ///     Limits the handler to answering <paramref name="count" /> requests, after which it
+    ///     stops matching and a later-registered handler can take over.
+    /// </summary>
+    /// <remarks>
+    ///     This is how retry behaviour is expressed: register a failing handler with
+    ///     <c>Times(2)</c> and a succeeding one after it.
+    /// </remarks>
+    public FortitudeHandlerBuilder Times(int count)
+    {
+        if (count <= 0)
+            throw new ArgumentOutOfRangeException(nameof(count), "Call count must be greater than zero.");
+
+        _maxCalls = count;
+        return this;
+    }
+
+    /// <summary>Limits the handler to a single request.</summary>
+    public FortitudeHandlerBuilder Once() => Times(1);
+
+    /// <summary>Limits the handler to two requests.</summary>
+    public FortitudeHandlerBuilder Twice() => Times(2);
+
+    /// <summary>
+    ///     Sets match precedence. Higher wins; the default is 0, where the most recently
+    ///     registered matching handler answers.
+    /// </summary>
+    public FortitudeHandlerBuilder Priority(int priority)
+    {
+        _priority = priority;
+        return this;
+    }
+
+    #endregion
+
     #region Latency
 
     /// <summary>
@@ -431,6 +470,40 @@ public class FortitudeHandlerBuilder
     #region Responder
 
     /// <summary>
+    ///     Returns a different response to each successive request, with the final one
+    ///     repeating once the sequence is exhausted.
+    /// </summary>
+    /// <param name="responders">The responses to return, in order. At least one is required.</param>
+    /// <example>
+    ///     Fail twice, then succeed:
+    ///     <code>
+    ///     fortitude.Accepts().Get().HttpRoute("/flaky").ReturnsInSequence(
+    ///         (_, res) => res.InternalServerError(),
+    ///         (_, res) => res.InternalServerError(),
+    ///         (_, res) => res.Ok("recovered"));
+    ///     </code>
+    /// </example>
+    public FortitudeHandler ReturnsInSequence(params Action<FortitudeRequest, FortitudeResponse>[] responders)
+    {
+        if (responders == null || responders.Length == 0)
+            throw new ArgumentException("At least one responder is required.", nameof(responders));
+
+        if (responders.Any(r => r == null))
+            throw new ArgumentException("Responders cannot be null.", nameof(responders));
+
+        var index = -1;
+
+        return Returns((req, res) =>
+        {
+            // Advance per request, clamping to the last entry so the sequence has a
+            // well-defined steady state rather than running out.
+            var position = Math.Min(Interlocked.Increment(ref index), responders.Length - 1);
+            responders[position](req, res);
+        });
+    }
+
+
+    /// <summary>
     ///     Registers a synchronous responder for matched requests.
     /// </summary>
     /// <param name="responder">The action used to generate a response.</param>
@@ -450,7 +523,9 @@ public class FortitudeHandlerBuilder
         )
         {
             Delay = _delay,
-            DelayMax = _delayMax
+            DelayMax = _delayMax,
+            MaxCalls = _maxCalls,
+            Priority = _priority
         };
 
         _client?.AddHandler(handler);
@@ -477,7 +552,9 @@ public class FortitudeHandlerBuilder
         )
         {
             Delay = _delay,
-            DelayMax = _delayMax
+            DelayMax = _delayMax,
+            MaxCalls = _maxCalls,
+            Priority = _priority
         };
 
         _client?.AddHandler(handler);

@@ -73,22 +73,17 @@ public sealed class YamlHandlerStore : IDisposable
     public async Task<FortitudeResponse?> HandleIncomingAsync(FortitudeRequest request)
     {
         // Snapshot once: a concurrent reload swaps the reference, it never mutates this list.
-        var handlers = _handlers;
+        var handler = FortitudeHandler.SelectFor(_handlers, request);
 
-        for (var i = handlers.Count - 1; i >= 0; i--)
-        {
-            var handler = handlers[i];
-            if (!handler.Matches(request)) continue;
+        if (handler == null)
+            return null;
 
-            var response = await handler.HandleRequestAsync(request);
+        var response = await handler.HandleRequestAsync(request);
 
-            _logger.LogInformation("[Incoming]: {Request}", request.ToString());
-            _logger.LogInformation("[Handled] {Response}", response);
+        _logger.LogInformation("[Incoming]: {Request}", request.ToString());
+        _logger.LogInformation("[Handled] {Response}", response);
 
-            return response;
-        }
-
-        return null;
+        return response;
     }
 
     /// <summary>
