@@ -106,6 +106,12 @@ public class FortitudeHandler
     public int Priority { get; set; }
 
     /// <summary>
+    ///     Ties this handler to a scenario state, so it only answers at a particular point in
+    ///     a multi-step flow. Null means the handler is not part of any scenario.
+    /// </summary>
+    public ScenarioBinding? Scenario { get; set; }
+
+    /// <summary>
     ///     Artificial latency applied before responding, simulating a slow dependency.
     /// </summary>
     /// <remarks>
@@ -136,6 +142,7 @@ public class FortitudeHandler
     {
         if (!Enabled) return false;
         if (IsExhausted) return false;
+        if (Scenario is { } scenario && !scenario.IsSatisfied()) return false;
         if (_methods.Any() && !_methods.Contains(req.Method)) return false;
 
         if (_routeTemplate != null)
@@ -169,6 +176,11 @@ public class FortitudeHandler
 
         _receivedRequests.Enqueue(req);
         Interlocked.Increment(ref _callCount);
+
+        // Transition before the responder runs, so a responder that inspects the scenario
+        // sees the state this request moved it to.
+        Scenario?.Advance();
+
         NotifyWaiters(req);
 
         // Waiters are notified before the delay: a test asserting "the SUT called us" should

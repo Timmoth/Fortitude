@@ -27,6 +27,13 @@ public sealed class YamlHandlerStore : IDisposable
     /// <summary>Per-file load results, for display and diagnostics.</summary>
     private volatile IReadOnlyList<YamlHandlerFile> _files = [];
 
+    /// <summary>
+    ///     Scenario state shared across every definition file, so handlers in different files
+    ///     can take part in the same flow. Survives a reload: resetting it on every file save
+    ///     would make scenarios unusable with hot reload on.
+    /// </summary>
+    public FortitudeScenarios Scenarios { get; } = new();
+
     public YamlHandlerStore(ILogger<YamlHandlerStore> logger, IOptions<Settings> settings)
     {
         _logger = logger;
@@ -93,7 +100,7 @@ public sealed class YamlHandlerStore : IDisposable
     {
         lock (_reloadLock)
         {
-            var files = FortitudeYamlLoader.LoadHandlerFiles(Directory);
+            var files = FortitudeYamlLoader.LoadHandlerFiles(Directory, Scenarios);
 
             _files = files;
             _handlers = files.SelectMany(f => f.Handlers).ToList();

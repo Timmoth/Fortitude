@@ -36,6 +36,11 @@ public class FortitudeClient : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Scenario state shared by this client's handlers, for modelling multi-step flows.
+    /// </summary>
+    public FortitudeScenarios Scenarios { get; } = new();
+
+    /// <summary>
     ///     Requests that arrived but matched no handler, and were answered with
     ///     501 Not Implemented.
     /// </summary>

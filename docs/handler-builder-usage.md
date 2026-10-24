@@ -407,3 +407,54 @@ fortitude.Accepts().Get().HttpRoute("/users")
     .Once()
     .ReturnsFault(HttpFault.ConnectionReset);
 ```
+
+## Stateful flows
+
+Sometimes the same route has to answer differently depending on what has already happened -
+a job that reports `queued`, then `running`, then `complete`. A scenario is a named state
+machine that lets handlers express that without knowing about each other.
+
+```csharp
+fortitude.Accepts().Get().HttpRoute("/jobs/1")
+    .InScenario("job").WhenState("Started").ThenState("Running")
+    .Returns((req, res) => res.Ok(new { status = "queued" }));
+
+fortitude.Accepts().Get().HttpRoute("/jobs/1")
+    .InScenario("job").WhenState("Running").ThenState("Done")
+    .Returns((req, res) => res.Ok(new { status = "running" }));
+
+fortitude.Accepts().Get().HttpRoute("/jobs/1")
+    .InScenario("job").WhenState("Done")
+    .Returns((req, res) => res.Ok(new { status = "complete" }));
+```
+
+Every scenario begins in `Started` (`FortitudeScenarios.InitialState`). A handler matches only
+while the scenario is in its `WhenState`, and moves it to `ThenState` once it has answered.
+Omit `WhenState` to match in any state; omit `ThenState` to leave the state alone. A scenario
+with neither is refused, since it could only be a mistake.
+
+`fortitude.Scenarios` exposes the state directly, which is useful for setting up midway through
+a flow or resetting between test cases:
+
+```csharp
+fortitude.Scenarios.GetState("job");        // "Running"
+fortitude.Scenarios.SetState("job", "Done");
+fortitude.Scenarios.Reset("job");           // back to "Started"
+fortitude.Scenarios.ResetAll();
+```
+
+Scenarios work the same way in YAML, where handlers across different files can share one flow:
+
+```yaml
+handlers:
+  - match:
+      route: /job
+      scenario:
+        name: job
+        whenState: Started
+        thenState: Running
+    response:
+      status: 200
+      body:
+        text: queued
+```

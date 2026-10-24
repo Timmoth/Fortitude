@@ -283,8 +283,13 @@ public static class FortitudeYamlLoader
     ///     rather than throwing, so one malformed file cannot stop the server from starting or
     ///     hide the handlers defined in its siblings.
     /// </remarks>
-    public static IReadOnlyList<YamlHandlerFile> LoadHandlerFiles(string dir)
+    public static IReadOnlyList<YamlHandlerFile> LoadHandlerFiles(
+        string dir, FortitudeScenarios? scenarios = null)
     {
+        // One state machine for the whole directory, so handlers in different files can take
+        // part in the same flow.
+        scenarios ??= new FortitudeScenarios();
+
         var results = new List<YamlHandlerFile>();
 
         foreach (var file in EnumerateYamlFiles(dir))
@@ -292,7 +297,7 @@ public static class FortitudeYamlLoader
             try
             {
                 var text = File.ReadAllText(file, Encoding.UTF8);
-                var handlers = FromYamlMulti(text, Path.GetDirectoryName(file)).ToList();
+                var handlers = FromYamlMulti(text, Path.GetDirectoryName(file), scenarios).ToList();
                 results.Add(new YamlHandlerFile(file, handlers, null));
             }
             catch (Exception ex)
@@ -308,9 +313,9 @@ public static class FortitudeYamlLoader
     ///     Loads every handler defined under <paramref name="dir" />, skipping files that fail
     ///     to parse. Use <see cref="LoadHandlerFiles" /> when you need to surface the failures.
     /// </summary>
-    public static IEnumerable<FortitudeHandler> LoadHandlers(string dir)
+    public static IEnumerable<FortitudeHandler> LoadHandlers(string dir, FortitudeScenarios? scenarios = null)
     {
-        return LoadHandlerFiles(dir).SelectMany(f => f.Handlers);
+        return LoadHandlerFiles(dir, scenarios).SelectMany(f => f.Handlers);
     }
 
     /// <summary>Content types inferred from a fixture file's extension.</summary>
@@ -401,7 +406,8 @@ public static class FortitudeYamlLoader
     ///     Parses a single handler definition — a document with top level <c>match</c> and
     ///     <c>response</c> keys, without the enclosing <c>handlers:</c> sequence.
     /// </summary>
-    public static FortitudeHandler FromYamlSingle(string yaml, string? baseDirectory = null)
+    public static FortitudeHandler FromYamlSingle(
+        string yaml, string? baseDirectory = null, FortitudeScenarios? scenarios = null)
     {
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -409,14 +415,15 @@ public static class FortitudeYamlLoader
             .Build();
 
         var handler = deserializer.Deserialize<HandlerDefinition>(yaml);
-        return ToHandler(handler, baseDirectory);
+        return ToHandler(handler, baseDirectory, scenarios);
     }
     
     /// <summary>
     ///     Parses a handler definition document: a <c>handlers:</c> sequence of
     ///     <c>match</c>/<c>response</c> pairs.
     /// </summary>
-    public static IEnumerable<FortitudeHandler> FromYamlMulti(string yaml, string? baseDirectory = null)
+    public static IEnumerable<FortitudeHandler> FromYamlMulti(
+        string yaml, string? baseDirectory = null, FortitudeScenarios? scenarios = null)
     {
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -430,7 +437,7 @@ public static class FortitudeYamlLoader
 
         foreach (var handlerDef in handlerDefs)
         {
-            yield return ToHandler(handlerDef, baseDirectory);
+            yield return ToHandler(handlerDef, baseDirectory, scenarios);
         }
     }
 
@@ -499,7 +506,10 @@ public static class FortitudeYamlLoader
         return arr.EnumerateArray().Select(Convert).ToArray();
     }
 
-    private static FortitudeHandler ToHandler(HandlerDefinition handler, string? baseDirectory = null)
+    private static FortitudeHandler ToHandler(
+    HandlerDefinition handler,
+    string? baseDirectory = null,
+    FortitudeScenarios? scenarios = null)
 {
     var methods = handler.Match.Methods;
     var route = handler.Match.Route;
@@ -628,6 +638,13 @@ public static class FortitudeYamlLoader
         (Action<FortitudeRequest, FortitudeResponse>)Responder
     );
 
+    if (handler.Match.Scenario is { } scenarioDef && !string.IsNullOrWhiteSpace(scenarioDef.Name))
+        built.Scenario = new ScenarioBinding(
+            scenarios ?? new FortitudeScenarios(),
+            scenarioDef.Name,
+            scenarioDef.WhenState,
+            scenarioDef.ThenState);
+
     if (handler.Response.Delay is { } range)
     {
         built.Delay = TimeSpan.FromMilliseconds(Math.Max(0, range.MinMs));
@@ -694,6 +711,30 @@ public sealed record MatchDefinition
 
     /// <summary>Conditions on the request body.</summary>
     public BodyMatchDefinition? Body { get; init; }
+
+    /// <summary>
+    ///     Restricts the handler to one point in a multi-step flow.
+    /// </summary>
+    public ScenarioDefinition? Scenario { get; init; }
+}
+
+/// <summary>
+///     Ties a handler to a named state machine, so a sequence of calls can return different
+///     answers without the handlers knowing about each other.
+/// </summary>
+public sealed record ScenarioDefinition
+{
+    /// <summary>The scenario's name. Handlers sharing a name share its state.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>
+    ///     The state the scenario must be in for this handler to match. Omit to match any
+    ///     state. Scenarios begin in <c>Started</c>.
+    /// </summary>
+    public string? WhenState { get; init; }
+
+    /// <summary>The state to move to after answering. Omit to leave the state alone.</summary>
+    public string? ThenState { get; init; }
 }
 
 /// <summary>

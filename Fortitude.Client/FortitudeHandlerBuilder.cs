@@ -38,6 +38,10 @@ public class FortitudeHandlerBuilder
     private int _priority;
     private double _failureProbability;
     private Action<FortitudeRequest, FortitudeResponse>? _onFailure;
+    private string? _scenario;
+    private string? _requiredState;
+    private string? _nextState;
+    private FortitudeScenarios? _scenarios;
 
     /// <summary>
     ///     Initializes a new instance of <see cref="FortitudeHandlerBuilder" />.
@@ -375,6 +379,55 @@ public class FortitudeHandlerBuilder
 
     #endregion
 
+    #region Scenarios
+
+    /// <summary>
+    ///     Places the handler in a named scenario, so it can require and advance a state.
+    /// </summary>
+    /// <param name="name">The scenario's name.</param>
+    /// <param name="scenarios">
+    ///     The state machine to use. Defaults to the client's, or a standalone one when the
+    ///     handler is built without a client.
+    /// </param>
+    public FortitudeHandlerBuilder InScenario(string name, FortitudeScenarios? scenarios = null)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Scenario name cannot be null or empty.", nameof(name));
+
+        _scenario = name;
+        _scenarios = scenarios ?? _client?.Scenarios ?? new FortitudeScenarios();
+        return this;
+    }
+
+    /// <summary>
+    ///     Restricts the handler to matching only while the scenario is in this state.
+    /// </summary>
+    /// <remarks>
+    ///     Scenarios begin in <see cref="FortitudeScenarios.InitialState" />.
+    /// </remarks>
+    public FortitudeHandlerBuilder WhenState(string state)
+    {
+        if (string.IsNullOrWhiteSpace(state))
+            throw new ArgumentException("State cannot be null or empty.", nameof(state));
+
+        _requiredState = state;
+        return this;
+    }
+
+    /// <summary>
+    ///     Moves the scenario to this state once the handler has answered.
+    /// </summary>
+    public FortitudeHandlerBuilder ThenState(string state)
+    {
+        if (string.IsNullOrWhiteSpace(state))
+            throw new ArgumentException("State cannot be null or empty.", nameof(state));
+
+        _nextState = state;
+        return this;
+    }
+
+    #endregion
+
     #region Call limits and precedence
 
     /// <summary>
@@ -567,7 +620,8 @@ public class FortitudeHandlerBuilder
             Delay = _delay,
             DelayMax = _delayMax,
             MaxCalls = _maxCalls,
-            Priority = _priority
+            Priority = _priority,
+            Scenario = BuildScenario()
         };
 
         _client?.AddHandler(handler);
@@ -596,11 +650,27 @@ public class FortitudeHandlerBuilder
             Delay = _delay,
             DelayMax = _delayMax,
             MaxCalls = _maxCalls,
-            Priority = _priority
+            Priority = _priority,
+            Scenario = BuildScenario()
         };
 
         _client?.AddHandler(handler);
         return handler;
+    }
+
+    /// <summary>
+    ///     Builds the scenario binding, if this handler declared one.
+    /// </summary>
+    private ScenarioBinding? BuildScenario()
+    {
+        if (_scenario == null) return null;
+
+        if (_requiredState == null && _nextState == null)
+            throw new InvalidOperationException(
+                $"Scenario '{_scenario}' declares neither WhenState nor ThenState, so it has no effect.");
+
+        return new ScenarioBinding(
+            _scenarios ?? new FortitudeScenarios(), _scenario, _requiredState, _nextState);
     }
 
     /// <summary>
