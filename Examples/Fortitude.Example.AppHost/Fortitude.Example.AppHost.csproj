@@ -20,6 +20,8 @@
 
     <ItemGroup>
       <PackageReference Include="Aspire.Hosting.AppHost" />
+      <PackageReference Include="Microsoft.Extensions.Http" VersionOverride="11.0.0" />
+      <PackageReference Include="Microsoft.Extensions.Logging.Console" VersionOverride="11.0.0" />
     </ItemGroup>
 
 </Project>
