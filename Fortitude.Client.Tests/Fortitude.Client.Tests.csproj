@@ -2,22 +2,15 @@
 
     <PropertyGroup>
         <!--
-          The package multi-targets, so the tests that guard it must too. Everything else in
-          the solution is net10.0 only because it references Fortitude.Server; this project
-          deliberately references nothing but the client, which is what consumers install.
+          References nothing but Fortitude.Client, which is what consumers actually install.
+          Every other test project also references Fortitude.Server, so none of them would
+          notice the package accidentally depending on something only the server provides.
         -->
-        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <RootNamespace>Tests.Client</RootNamespace>
-
-        <!--
-          Lets the net8.0 and net9.0 builds run on a machine that only has a newer runtime
-          installed, so the suite works on any contributor's laptop. CI installs the real
-          8.0 and 9.0 runtimes, which is where the exact-runtime result comes from.
-        -->
-        <RollForward>LatestMajor</RollForward>
     </PropertyGroup>
 
     <ItemGroup>

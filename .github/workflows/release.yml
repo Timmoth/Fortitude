@@ -51,16 +51,12 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
+          dotnet-version: '10.0.x'
 
       - name: Test before publishing
         run: dotnet test Fortitude.Tests/Fortitude.Tests.csproj -c Release
 
-      # The package ships three target frameworks; all three are verified before it
-      # goes to nuget.org.
+      # Verifies the package standing on its own before it is published.
       - name: Package tests before publishing
         run: dotnet test Fortitude.Client.Tests/Fortitude.Client.Tests.csproj -c Release
 

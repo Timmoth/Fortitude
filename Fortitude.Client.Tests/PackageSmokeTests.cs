@@ -8,16 +8,15 @@ using Xunit;
 namespace Tests.Client;
 
 /// <summary>
-///     The shipped package, exercised on every framework it targets.
+///     The shipped package, exercised with nothing but the package referenced.
 /// </summary>
 /// <remarks>
-///     The rest of the suite runs on net10.0 only, because it references the server. The
-///     package itself targets net8.0, net9.0 and net10.0, so until this project existed the
-///     two builds that most consumers actually install were compiled and never run.
+///     Every other test project references Fortitude.Server as well as Fortitude.Client, so
+///     none of them would notice the package picking up a dependency that only the server
+///     supplies. This one references the client alone, which is what consumers install.
 ///     <para>
-///         This is a smoke suite, not a second copy of the main one: it covers one path
-///         through each public capability, enough to catch an API or behavioural difference
-///         between target frameworks.
+///         It is a smoke suite, not a second copy of the main one: one path through each
+///         public capability, enough to catch the package being unusable on its own.
 ///     </para>
 /// </remarks>
 public class PackageSmokeTests
