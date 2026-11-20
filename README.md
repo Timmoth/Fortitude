@@ -45,9 +45,8 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 
 ### Running the Fortitude Server via Docker
 
-The image moves to GHCR with the next release and is not published there yet — see
-[installation](./docs/installation.md) for what to use until it is, and for running the
-server without Docker.
+The image is public, so this needs no login — see
+[installation](./docs/installation.md) for running the server without Docker.
 
 ```bash
 # Pull the latest Fortitude Server image:

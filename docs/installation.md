@@ -5,7 +5,7 @@ Fortitude ships two things, both published from GitHub:
 | Artefact | Where | Used for |
 |---|---|---|
 | `Fortitude` NuGet package | [GitHub Packages](https://github.com/Timmoth?tab=packages&repo_name=Fortitude) | The library your tests reference. |
-| `ghcr.io/timmoth/fortitude` image | [GHCR](https://github.com/Timmoth/Fortitude/pkgs/container/fortitude) | The standalone mock server. Awaiting its first release push — see [the server image](#the-server-image). |
+| `ghcr.io/timmoth/fortitude` image | [GHCR](https://github.com/Timmoth/Fortitude/pkgs/container/fortitude) | The standalone mock server. |
 
 Neither is on nuget.org. The older `aptacode/fortitude-server` Docker Hub image still carries
 the last hand-pushed build but will not be updated again.
@@ -186,16 +186,8 @@ docker run -e PORTS=5000-5005 -p 5000-5005:5000-5005 ghcr.io/timmoth/fortitude:l
 docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config ghcr.io/timmoth/fortitude:latest
 ```
 
-Pulling a specific release is `ghcr.io/timmoth/fortitude:v10.1.4`.
-
-> **Not published yet.** The release workflow pushes this image, and no release has run since
-> it was pointed at GHCR, so the tag does not exist today — `docker pull` returns a 403 until
-> it does. In the meantime the last hand-pushed image is still on Docker Hub as
-> `aptacode/fortitude-server:latest`, or build it yourself from a clone:
-> `docker build -t fortitude .`
->
-> The first push also creates the GHCR package **private**; it has to be made public once from
-> its package settings page before an anonymous `docker pull` will work.
+The image is public, so `docker pull` needs no login. Pulling a specific release is
+`ghcr.io/timmoth/fortitude:v10.2.0`; `linux/amd64` and `linux/arm64` are both built.
 
 Confirm it is up:
 
@@ -240,6 +232,7 @@ block above; without it NuGet queries every source for every package.
 **Windows keeps reusing a bad credential.** Delete the `nuget.pkg.github.com` entry from
 Credential Manager → Windows Credentials.
 
-**`docker pull` returns 401.** The image should be public; if it is not yet, the owner needs to
-change the package visibility once on its
+**`docker pull` returns 401 or 404.** The image is public, so this should not happen. If a
+future release creates a new package it starts private by default, and the owner has to change
+the visibility once on its
 [package settings page](https://github.com/Timmoth/Fortitude/pkgs/container/fortitude).
