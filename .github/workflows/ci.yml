@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # global.json pins the band; this installs it.
       - uses: actions/setup-dotnet@v4
@@ -77,7 +77,7 @@ jobs:
     # Dockerfile is not discovered until a tag is pushed. Building it here (without
     # pushing) moves that to the pull request.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 
