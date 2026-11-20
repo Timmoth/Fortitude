@@ -1,0 +1,16 @@
+# Keep the build context to sources. Without this, COPY . . ships every local build
+# artifact into the image layer — slow to send, and stale bin/obj from the host can
+# shadow what the container build produces.
+**/bin/
+**/obj/
+**/TestResults/
+**/.vs/
+**/.idea/
+.git/
+.github/
+docs/
+temp/
+**/*.user
+**/.DS_Store
+Dockerfile
+.dockerignore
