@@ -22,8 +22,13 @@
         <PackageTags>Testing Mock Fake Mocking Http</PackageTags>
         <Title>Fortitude</Title>
         <GenerateDocumentationFile>True</GenerateDocumentationFile>
-        <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <!--
+          Symbols are embedded in the assembly rather than shipped as a separate .snupkg:
+          GitHub Packages has no symbol server, so a side-car symbol package would have
+          nowhere to go. Combined with SourceLink below, a consumer can still step into
+          the source from a debugger.
+        -->
+        <DebugType>embedded</DebugType>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>icon.png</PackageIcon>
         <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

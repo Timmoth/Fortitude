@@ -83,9 +83,13 @@ cannot be merged. Dependabot opens grouped update pull requests weekly.
 
 ## Releasing
 
-Releases are automated. Pushing a tag of the form `v10.2.0` publishes the NuGet package and
-the multi-arch Docker image; the tag is the source of the version number. Maintainers need
-`NUGET_API_KEY`, `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` configured as repository secrets.
+Releases are automated. Pushing a tag of the form `v10.2.0` publishes the package and the
+multi-arch Docker image; the tag is the source of the version number.
+
+The package goes to GitHub Packages rather than nuget.org, which needs no stored secret -
+the workflow's automatic `GITHUB_TOKEN` authenticates, given the `packages: write`
+permission the job declares. Maintainers only need `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN` configured as repository secrets, for the image.
 
 ## Building a client for another language
 
