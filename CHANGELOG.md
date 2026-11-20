@@ -57,6 +57,20 @@ Versions before 10.2.0 predate this file; see the git history for those.
 
 ### Changed
 
+- **Published to GitHub Packages instead of nuget.org.** Installing now requires
+  authenticating to the feed with a `read:packages` token even though the package is public;
+  the README has the one-time setup. Symbols are embedded in the assembly rather than shipped
+  as a `.snupkg`, which GitHub Packages does not support.
+- **The package targets `net10.0` only.** It previously multi-targeted `net8.0` and `net9.0`
+  to reach the then-current LTS; both reached end of life in 2026. Breaking for consumers
+  still on those runtimes.
+- Analyzers run at Recommended with warnings as errors, pinned to a fixed `AnalysisLevel` so
+  the rule set does not change with the SDK in use. `.editorconfig` records what is disabled
+  and why.
+- The SDK is pinned to the .NET 10 band by `global.json`.
+- Dependencies updated to the newest versions compatible with `net10.0`, including Aspire 17,
+  whose `AddProject<TProject>` is replaced by `AddDotnetProject`.
+
 - **`Settings:Broadcast` now defaults to `false`.** Per-client port routing - the basis of the
   parallel-execution claim - was off by default despite the documentation saying otherwise.
   Requests now go to the client that reserved the port they arrived on, falling back to
