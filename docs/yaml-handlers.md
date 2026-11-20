@@ -245,6 +245,30 @@ formats are served byte for byte.
 A missing or unreadable file produces a `500` naming the path, rather than taking down the
 handler.
 
+## Serving binary bytes inline
+
+`base64:` serves a body that is not text at all — an image, a protobuf payload, a gzipped
+response — exactly as given:
+
+```yaml
+handlers:
+  - match:
+      route: /logo.gif
+    response:
+      status: 200
+      body:
+        base64: R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==
+        contentType: image/gif
+```
+
+Without a `contentType:` the body is served as `application/octet-stream`. Templating does not
+apply, because the bytes are reproduced verbatim. A value that is not valid base64 is reported
+when the definition file loads, not on the first request that reaches it.
+
+This is also what [record and replay](./record-and-replay.md) writes when it captures a binary
+response, so a recorded image replays as the image rather than as the text it is not. Prefer
+`file:` for anything large — a base64 blob inline makes the definition unreadable.
+
 ## How values are typed
 
 Quoting decides the JSON type: a quoted scalar is text, an unquoted one is inferred.

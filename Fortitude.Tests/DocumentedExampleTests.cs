@@ -284,4 +284,34 @@ public class DocumentedExampleTests(ITestOutputHelper output)
         Assert.Contains("\"userId\":42", body);
         Assert.Contains("\"email\":\"alice@example.com\"", body);
     }
+
+    [Fact]
+    public async Task YamlHandlersBinaryBody()
+    {
+        // docs/yaml-handlers.md: "Serving binary bytes inline"
+        var handler = FortitudeYamlLoader.FromYamlMulti("""
+                                                        handlers:
+                                                          - match:
+                                                              route: /logo.gif
+                                                            response:
+                                                              status: 200
+                                                              body:
+                                                                base64: R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==
+                                                                contentType: image/gif
+                                                        """).Single();
+
+        var response = await handler.HandleRequestAsync(new FortitudeRequest
+        {
+            Method = "GET",
+            BaseUrl = "http://localhost",
+            Route = "/logo.gif",
+            Url = "http://localhost/logo.gif",
+            Protocol = "HTTP/1.1"
+        });
+
+        Assert.Equal("image/gif", response.ContentType);
+
+        // The documented value really is a GIF, byte for byte.
+        Assert.Equal("GIF89a"u8.ToArray(), response.Body!.Take(6).ToArray());
+    }
 }

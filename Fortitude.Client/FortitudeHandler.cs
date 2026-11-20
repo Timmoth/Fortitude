@@ -170,7 +170,18 @@ public class FortitudeHandler
     /// <summary>
     ///     Handles the request, invokes the responder, tracks it, and notifies waiters.
     /// </summary>
-    public async Task<FortitudeResponse> HandleRequestAsync(FortitudeRequest req)
+    /// <param name="req">The request to answer.</param>
+    /// <param name="cancellationToken">
+    ///     Abandons the response while <see cref="Delay" /> is being simulated. In intercept
+    ///     mode this is the caller's own token, so a <see cref="HttpClient.Timeout" /> or a
+    ///     Polly timeout policy fires when it should instead of waiting out the full delay.
+    /// </param>
+    /// <exception cref="OperationCanceledException">
+    ///     Thrown when the caller gives up during a simulated delay.
+    /// </exception>
+    public async Task<FortitudeResponse> HandleRequestAsync(
+        FortitudeRequest req,
+        CancellationToken cancellationToken = default)
     {
         if (req == null) throw new ArgumentNullException(nameof(req));
 
@@ -184,10 +195,11 @@ public class FortitudeHandler
         NotifyWaiters(req);
 
         // Waiters are notified before the delay: a test asserting "the SUT called us" should
-        // not have to sit through the latency being simulated.
+        // not have to sit through the latency being simulated. The request is recorded before
+        // the delay too, so a cancelled call still counts as having been made.
         var delay = NextDelay();
         if (delay > TimeSpan.Zero)
-            await Task.Delay(delay).ConfigureAwait(false);
+            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
 
         var response = new FortitudeResponse(req.RequestId);
 

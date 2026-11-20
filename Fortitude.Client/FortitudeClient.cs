@@ -309,7 +309,9 @@ public class FortitudeClient : IAsyncDisposable
 
         if (handler != null)
         {
-            var response = await handler.HandleRequestAsync(req);
+            // The caller's token travels with the request so a simulated delay is abandoned
+            // when the system under test gives up, rather than outliving its own timeout.
+            var response = await handler.HandleRequestAsync(req, cancellationToken);
 
             _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
             _logger.LogInformation("[Handled] {response}", response);

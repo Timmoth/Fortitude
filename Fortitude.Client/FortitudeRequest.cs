@@ -286,6 +286,15 @@ public record FortitudeRequest
     ///     Renders this request as a cURL command, for pasting into a terminal or into the
     ///     live UI's handler generator.
     /// </summary>
+    /// <remarks>
+    ///     Every value is single-quoted via <see cref="FortitudeText.ShellQuote" />, so a body
+    ///     or header containing quotes, spaces or shell metacharacters stays intact.
+    ///     <para>
+    ///         A body that is not valid UTF-8 is base64 encoded and the command carries a
+    ///         trailing shell comment saying so: the raw bytes would survive neither the
+    ///         terminal nor the trip back through the handler generator.
+    ///     </para>
+    /// </remarks>
     public string ToCurl()
     {
         var sb = new StringBuilder();
@@ -295,44 +304,45 @@ public record FortitudeRequest
         // Method
         sb.Append($" -X {Method}");
 
-        // Headers
+        // Headers. A Cookie header and the parsed Cookies are the same thing arriving by two
+        // routes, so emitting both would send every cookie twice.
         foreach (var header in Headers)
-        foreach (var value in header.Value)
         {
-            var headerValue = $"{header.Key}: {value}";
-            if (headerValue.Contains('"'))
-                sb.Append($" -H '{headerValue.Replace("'", "'\\''")}'");
-            else
-                sb.Append($" -H \"{headerValue}\"");
+            if (Cookies.Count > 0 && string.Equals(header.Key, "Cookie", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            foreach (var value in header.Value)
+                sb.Append($" -H {FortitudeText.ShellQuote($"{header.Key}: {value}")}");
         }
 
         // Cookies (cURL cookie header)
         if (Cookies.Count > 0)
         {
             var cookieString = string.Join("; ", Cookies.Select(c => $"{c.Key}={c.Value}"));
-            sb.Append($" -H \"Cookie: {cookieString}\"");
+            sb.Append($" -H {FortitudeText.ShellQuote($"Cookie: {cookieString}")}");
         }
 
         // Body
+        string? binaryNote = null;
+
         if (Body is { Length: > 0 })
         {
-            // Try to decode as UTF8; otherwise base64 encode
-            string bodyString;
-
-            try
+            if (FortitudeText.TryDecodeUtf8(Body, out var bodyString))
             {
-                bodyString = Encoding.UTF8.GetString(Body);
+                sb.Append($" --data {FortitudeText.ShellQuote(bodyString)}");
             }
-            catch
+            else
             {
-                bodyString = Convert.ToBase64String(Body);
+                sb.Append($" --data-binary {FortitudeText.ShellQuote(Convert.ToBase64String(Body))}");
+                binaryNote = " # body was not valid UTF-8 and is base64 encoded";
             }
-
-            sb.Append($" --data '{bodyString.Replace("'", "\\'")}'");
         }
 
         // Final URL
-        sb.Append($" \"{Url}\"");
+        sb.Append($" {FortitudeText.ShellQuote(Url)}");
+
+        if (binaryNote != null)
+            sb.Append(binaryNote);
 
         return sb.ToString();
     }

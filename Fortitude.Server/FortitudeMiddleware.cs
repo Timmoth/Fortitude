@@ -67,7 +67,7 @@ public class FortitudeMiddleware(
             return;
         }
 
-        var response = await yamlHandlers.HandleIncomingAsync(req);
+        var response = await yamlHandlers.HandleIncomingAsync(req, ctx.RequestAborted);
         if (response != null)
         {
             _tracker.Add(response);

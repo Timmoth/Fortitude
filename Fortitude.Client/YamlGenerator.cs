@@ -196,12 +196,20 @@ public static class FortitudeYamlGenerator
     }
 
     /// <summary>
-    ///     Renders a recorded body: JSON as structured YAML so it stays editable, anything
-    ///     else as text.
+    ///     Renders a recorded body: JSON as structured YAML so it stays editable, other text
+    ///     verbatim, and anything that is not text at all as base64.
     /// </summary>
     private static Dictionary<string, object?> BodyNode(FortitudeResponse response)
     {
-        var text = Encoding.UTF8.GetString(response.Body!);
+        // An image or a gzipped payload is not text, and decoding it as UTF-8 would replace
+        // every undecodable byte with U+FFFD — a recording that can never replay what it
+        // captured. Base64 keeps the bytes exactly.
+        if (!FortitudeText.TryDecodeUtf8(response.Body, out var text))
+            return new Dictionary<string, object?>
+            {
+                ["base64"] = System.Convert.ToBase64String(response.Body!),
+                ["contentType"] = response.ContentType
+            };
 
         if (response.ContentType.Contains("json", StringComparison.OrdinalIgnoreCase))
             try

@@ -81,6 +81,7 @@ The most recent requests, newest first, with the response each received.
       "query": "",
       "headers": { "content-type": ["application/json"] },
       "body": "{\"item\":\"widget\"}",
+      "bodyBase64": null,
       "response": { "status": 201, "contentType": "application/json" }
     }
   ]
@@ -88,6 +89,10 @@ The most recent requests, newest first, with the response each received.
 ```
 
 `total` counts everything seen since start; `retained` is how many are still buffered.
+
+A body that is not valid UTF-8 - a file upload, say - arrives as `bodyBase64` with `body` null,
+rather than as a string of replacement characters that would look like a corrupt payload. Both
+are null for an empty body.
 
 ### `DELETE /fortitude/api/requests`
 
