@@ -20,9 +20,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The SDK builds every target; the 8.0 and 9.0 runtimes are what lets the
+      # multi-targeted package tests execute on the frameworks they were compiled
+      # for rather than rolling forward onto 10.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
 
       # A cold restore is what makes the NuGet audit in Directory.Build.props
       # meaningful: NU1903/NU1904 are promoted to errors, so a dependency with a
@@ -39,6 +45,15 @@ jobs:
           -c Release --no-build
           --logger "trx;LogFileName=unit-results.trx"
           --collect:"XPlat Code Coverage"
+          --results-directory ./TestResults
+
+      # Runs once per target framework the NuGet package ships, so a break that only
+      # affects the net8.0 or net9.0 build is caught here rather than by a consumer.
+      - name: Package tests (net8.0, net9.0, net10.0)
+        run: >
+          dotnet test Fortitude.Client.Tests/Fortitude.Client.Tests.csproj
+          -c Release --no-build
+          --logger "trx;LogFileName=package-results.trx"
           --results-directory ./TestResults
 
       # The example suite drives a real Aspire host, and builds and runs a Docker image.
@@ -58,3 +73,41 @@ jobs:
           name: test-results
           path: ./TestResults
           if-no-files-found: warn
+
+  docker:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+
+    # The release workflow is the only thing that builds the image today, so a broken
+    # Dockerfile is not discovered until a tag is pushed. Building it here (without
+    # pushing) moves that to the pull request.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: fortitude-server:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Proves the published image actually starts and serves, not just that it compiles.
+      - name: Smoke test the image
+        run: |
+          docker run -d --name fortitude -e PORTS=8080 -p 8080:8080 fortitude-server:ci
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/fortitude/health; then
+              echo "Server is up."
+              docker rm -f fortitude
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not become healthy."
+          docker logs fortitude
+          docker rm -f fortitude
+          exit 1
