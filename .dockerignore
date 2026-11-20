@@ -8,8 +8,10 @@
 **/.idea/
 .git/
 .github/
-docs/
 temp/
+
+# docs/ is NOT excluded: Fortitude.Client packs docs/icon.png, and the client is
+# built as part of publishing the server, so dropping it fails the image build.
 **/*.user
 **/.DS_Store
 Dockerfile
