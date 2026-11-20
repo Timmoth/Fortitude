@@ -6,7 +6,15 @@ All notable changes to this project are documented here. The format is based on
 
 Versions before 10.2.0 predate this file; see the git history for those.
 
+10.1.4 was published to GitHub Packages while the release workflow was being moved off
+nuget.org. It carries the same code as 10.2.0 minus the documentation, and is not described
+separately here.
+
 ## [Unreleased]
+
+Nothing yet.
+
+## [10.2.0] - 2026-11-20
 
 ### Added
 
