@@ -7,12 +7,13 @@ _Fortitude spins up a local mock server so you can fluently configure HTTP route
 
 <p align="center">
   <a href="https://github.com/Timmoth/Fortitude/actions/workflows/ci.yml"><img src="https://github.com/Timmoth/Fortitude/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <a href="https://github.com/Timmoth/Fortitude/packages"><img src="https://img.shields.io/badge/package-GitHub%20Packages-2b3137?logo=github" alt="GitHub Packages"/></a>
+  <a href="https://www.nuget.org/packages/Fortitude"><img src="https://img.shields.io/nuget/v/Fortitude.svg" alt="NuGet"/></a>
+  <a href="https://www.nuget.org/packages/Fortitude"><img src="https://img.shields.io/nuget/dt/Fortitude.svg" alt="NuGet downloads"/></a>
   <a href="https://github.com/Timmoth/Fortitude/pkgs/container/fortitude"><img src="https://img.shields.io/badge/image-ghcr.io-2b3137?logo=docker&logoColor=white" alt="Container image"/></a>
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/Timmoth/Fortitude.svg" alt="License"/></a>
 </p>
 
-[Package](https://github.com/Timmoth/Fortitude/packages) - 
+[NuGet](https://www.nuget.org/packages/Fortitude) - 
 [Container image](https://github.com/Timmoth/Fortitude/pkgs/container/fortitude)
 
 ## What is Fortitude?
@@ -99,26 +100,11 @@ dotnet test ./Examples/Fortitude.Example.Tests
 
 **Make sure to add the NuGet package to your test project**
 
-Fortitude is published to
-[GitHub Packages](https://github.com/Timmoth?tab=packages&repo_name=Fortitude), not to
-nuget.org, and GitHub Packages requires authentication even for public packages. Add the feed
-once with a **classic** token carrying the `read:packages` scope:
-
 ```bash
-dotnet nuget add source https://nuget.pkg.github.com/Timmoth/index.json \
-  --name fortitude \
-  --username <your-github-username> \
-  --password <classic-token-with-read:packages> \
-  --store-password-in-clear-text
-
 dotnet add package Fortitude
 ```
 
-In CI the repository's own `GITHUB_TOKEN` works as the password.
-
-**[installation](./docs/installation.md)** covers the committed `nuget.config` most teams
-want instead, the click-through for Visual Studio, VS Code and Rider, and what each
-authentication failure means.
+[installation](./docs/installation.md) covers running the server, with or without Docker.
 
 ## Quick start
 

@@ -86,9 +86,39 @@ cannot be merged. Dependabot opens grouped update pull requests weekly.
 Releases are automated. Pushing a tag of the form `v10.2.0` publishes the package and the
 multi-arch Docker image; the tag is the source of the version number.
 
-Both artefacts go to GitHub: the package to GitHub Packages and the image to GHCR. Neither
-needs a stored secret - the workflow's automatic `GITHUB_TOKEN` authenticates to both, given
-the `packages: write` permission each job declares. **No repository secrets are required.**
+The package goes to [nuget.org](https://www.nuget.org/packages/Fortitude) and the image to
+GHCR. Neither uses a long-lived credential.
+
+### nuget.org, via Trusted Publishing
+
+The job mints a GitHub OIDC token, [`NuGet/login`](https://github.com/NuGet/login) exchanges
+it for an API key valid for one hour, and that key does the push. There is no API key stored
+anywhere.
+
+It depends on a policy that lives on nuget.org, not in this repository. Under
+**nuget.org -> your username -> Trusted Publishing**, the policy must name:
+
+| Field | Value |
+|---|---|
+| Repository Owner | `Timmoth` |
+| Repository | `Fortitude` |
+| Workflow File | `release.yml` (the file name alone, no path) |
+| Environment | leave empty - the workflow uses none |
+
+The policy has to be owned by the account that owns the package, which is `aptacode`, and its
+scope must allow publishing new versions of `Fortitude`.
+
+One repository secret is needed: **`NUGET_USER`**, the nuget.org account's profile name - not
+an email address.
+
+> A new policy on a private repository starts *temporarily active* for 7 days and turns
+> permanent on the first successful publish. If no publish happens in that window it goes
+> inactive, and the 7 days can be restarted from the same page.
+
+### GHCR
+
+The automatic `GITHUB_TOKEN` authenticates, given the `packages: write` permission the job
+declares. Nothing to configure.
 
 ## Building a client for another language
 

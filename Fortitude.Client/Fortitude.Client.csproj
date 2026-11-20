@@ -27,12 +27,12 @@
         <Title>Fortitude</Title>
         <GenerateDocumentationFile>True</GenerateDocumentationFile>
         <!--
-          Symbols are embedded in the assembly rather than shipped as a separate .snupkg:
-          GitHub Packages has no symbol server, so a side-car symbol package would have
-          nowhere to go. Combined with SourceLink below, a consumer can still step into
-          the source from a debugger.
+          A side-car symbol package, which nuget.org's symbol server accepts. Together with
+          the SourceLink settings below, a consumer can step straight into this source from
+          a debugger.
         -->
-        <DebugType>embedded</DebugType>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>icon.png</PackageIcon>
         <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

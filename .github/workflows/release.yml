@@ -6,12 +6,19 @@ name: Release
 # for the package version and kept for the Docker tag, matching the convention
 # previously used by hand (see NOTES.md).
 #
-# Both the package and the image go to GitHub: GitHub Packages for NuGet and
-# GHCR for the container. Neither needs a stored secret — the automatic
-# GITHUB_TOKEN authenticates to both, given the packages: write permission the
-# jobs below declare.
+# The package goes to nuget.org via Trusted Publishing and the image to GHCR.
+# Neither uses a long-lived credential:
 #
-# No repository secrets are required.
+#   nuget.org  The job requests a GitHub OIDC token, NuGet/login exchanges it for
+#              an API key valid for one hour, and that key does the push. This
+#              requires a Trusted Publishing policy on nuget.org naming this
+#              repository owner, this repository and the workflow file
+#              `release.yml` — see CONTRIBUTING.md.
+#   GHCR       The automatic GITHUB_TOKEN authenticates, given packages: write.
+#
+# Required repository secrets:
+#   NUGET_USER  The nuget.org account the policy belongs to, by profile name —
+#               not an email address.
 
 on:
   push:
@@ -47,14 +54,15 @@ jobs:
           echo "Publishing version $VERSION"
 
   nuget:
-    name: Publish package to GitHub Packages
+    name: Publish package to nuget.org
     needs: version
     runs-on: ubuntu-latest
 
-    # What lets GITHUB_TOKEN push to the registry; without it the push is a 403.
+    # id-token lets the job mint the OIDC token that Trusted Publishing trades
+    # for a temporary API key. Without it NuGet/login has nothing to exchange.
     permissions:
       contents: read
-      packages: write
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -84,16 +92,23 @@ jobs:
           name: nuget-package
           path: ./artifacts/*
 
-      # GitHub Packages rejects a re-push of a version that already exists, so
-      # --skip-duplicate keeps a re-run of the workflow from failing the job.
-      #
-      # Symbol packages (.snupkg) are not supported by GitHub Packages; symbols
-      # travel inside the .nupkg instead, via the SourceLink settings in the csproj.
-      - name: Push to GitHub Packages
+      # Kept immediately before the push on purpose: the key it returns lasts an
+      # hour, and each OIDC token buys exactly one key, so requesting it early
+      # only risks it expiring behind a slow build.
+      - name: Exchange an OIDC token for a nuget.org API key
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # --skip-duplicate so re-running the workflow on an already-published
+      # version reports success instead of failing the job. The .snupkg sitting
+      # alongside is pushed automatically.
+      - name: Push to nuget.org
         run: >
           dotnet nuget push "./artifacts/*.nupkg"
-          --api-key ${{ secrets.GITHUB_TOKEN }}
-          --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
           --skip-duplicate
 
   docker:
