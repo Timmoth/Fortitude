@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
+using System.Globalization;
 
 namespace Fortitude.Client;
 
@@ -70,10 +71,10 @@ public class FortitudeClient : IAsyncDisposable
             : $"{unmatched.Count} requests were not matched by any handler:");
 
         foreach (var request in unmatched.Take(10))
-            message.AppendLine($"    {request.Method} {request.Route}{request.RawQuery}");
+            message.AppendLine(CultureInfo.InvariantCulture, $"    {request.Method} {request.Route}{request.RawQuery}");
 
         if (unmatched.Count > 10)
-            message.AppendLine($"    ... and {unmatched.Count - 10} more");
+            message.AppendLine(CultureInfo.InvariantCulture, $"    ... and {unmatched.Count - 10} more");
 
         var handlers = _handlerSnapshot;
 
@@ -85,7 +86,7 @@ public class FortitudeClient : IAsyncDisposable
         {
             message.AppendLine("  Registered handlers:");
             foreach (var handler in handlers)
-                message.AppendLine($"    {handler}{(handler.IsExhausted ? "  (exhausted)" : string.Empty)}");
+                message.AppendLine(CultureInfo.InvariantCulture, $"    {handler}{(handler.IsExhausted ? "  (exhausted)" : string.Empty)}");
         }
 
         throw new FortitudeVerificationException(message.ToString().TrimEnd());
@@ -110,6 +111,10 @@ public class FortitudeClient : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
+
+        // Nothing here needs finalizing, but a derived type that adds a finalizer would
+        // otherwise have to re-implement disposal just to suppress it.
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
@@ -119,14 +124,13 @@ public class FortitudeClient : IAsyncDisposable
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="handler" /> is null.</exception>
     public void AddHandler(FortitudeHandler handler)
     {
-        if (handler == null)
-            throw new ArgumentNullException(nameof(handler));
+        ArgumentNullException.ThrowIfNull(handler);
 
         lock (_handlersLock)
         {
             if (_handlers.Contains(handler))
             {
-                _logger.LogInformation("[Duplicate Handler]: {HandlerName} ", handler.ToString());
+                _logger.LogInformation("[Duplicate Handler]: {HandlerName} ", handler);
                 return;
             }
 
@@ -134,7 +138,7 @@ public class FortitudeClient : IAsyncDisposable
             _handlerSnapshot = _handlers.ToArray();
         }
 
-        _logger.LogInformation("Registered Handler: {HandlerName}", handler.ToString());
+        _logger.LogInformation("Registered Handler: {HandlerName}", handler);
     }
 
     /// <summary>
@@ -168,8 +172,7 @@ public class FortitudeClient : IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown if the client is already started.</exception>
     public async Task<int> StartAsync(HubConnection connection, CancellationToken cancellationToken = default)
     {
-        if (connection == null)
-            throw new ArgumentNullException(nameof(connection));
+        ArgumentNullException.ThrowIfNull(connection);
 
         if (_connection != null)
             throw new InvalidOperationException("FortitudeClient is already started.");
@@ -277,8 +280,8 @@ public class FortitudeClient : IAsyncDisposable
         {
             var response = await handler.HandleRequestAsync(request);
 
-            _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
-            _logger.LogInformation("[Handled] {response}", response);
+            _logger.LogInformation("[Incoming]: {Request}", request);
+            _logger.LogInformation("[Handled] {Response}", response);
 
             await _connection.InvokeAsync("SubmitResponse", response);
             return;
@@ -287,8 +290,8 @@ public class FortitudeClient : IAsyncDisposable
         _unmatched.Enqueue(request);
 
         var defaultResponse = new FortitudeResponse(request.RequestId).MethodNotImplemented();
-        _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
-        _logger.LogWarning("[Ignored] {defaultResponse}.", defaultResponse);
+        _logger.LogInformation("[Incoming]: {Request}", request);
+        _logger.LogWarning("[Ignored] {DefaultResponse}.", defaultResponse);
         await _connection.InvokeAsync("SubmitResponse", defaultResponse);
     }
 
@@ -313,8 +316,8 @@ public class FortitudeClient : IAsyncDisposable
             // when the system under test gives up, rather than outliving its own timeout.
             var response = await handler.HandleRequestAsync(req, cancellationToken);
 
-            _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
-            _logger.LogInformation("[Handled] {response}", response);
+            _logger.LogInformation("[Incoming]: {Request}", request);
+            _logger.LogInformation("[Handled] {Response}", response);
 
             return response.ToHttpResponseMessage();
         }
@@ -322,8 +325,8 @@ public class FortitudeClient : IAsyncDisposable
         _unmatched.Enqueue(req);
 
         var defaultResponse = new FortitudeResponse(requestId).MethodNotImplemented();
-        _logger.LogInformation("[Incoming]: {RequestId}", request.ToString());
-        _logger.LogWarning("[Ignored] {defaultResponse}.", defaultResponse);
+        _logger.LogInformation("[Incoming]: {Request}", request);
+        _logger.LogWarning("[Ignored] {DefaultResponse}.", defaultResponse);
         return defaultResponse.ToHttpResponseMessage();
     }
 
@@ -337,8 +340,7 @@ public class FortitudeClient : IAsyncDisposable
     public static FortitudeClient Create(
         ITestOutputHelper logger)
     {
-        if (logger is null)
-            throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
 
         return Create(logger.WriteLine);
     }
@@ -352,8 +354,7 @@ public class FortitudeClient : IAsyncDisposable
     /// </param>
     public static FortitudeClient Create(Action<string> writeLine)
     {
-        if (writeLine is null)
-            throw new ArgumentNullException(nameof(writeLine));
+        ArgumentNullException.ThrowIfNull(writeLine);
 
         return new FortitudeClient(new TestOutputLogger<FortitudeClient>(writeLine));
     }

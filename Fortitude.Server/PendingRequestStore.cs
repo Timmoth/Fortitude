@@ -77,7 +77,7 @@ public class PendingRequestStore
     /// <param name="response">The response to complete the request.</param>
     public void Complete(FortitudeResponse response)
     {
-        if (response == null) throw new ArgumentNullException(nameof(response));
+        ArgumentNullException.ThrowIfNull(response);
 
         if (_waiting.TryRemove(response.RequestId, out var tcs))
         {

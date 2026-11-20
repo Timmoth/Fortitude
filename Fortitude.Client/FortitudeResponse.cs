@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.WebUtilities;
+using System.Globalization;
 
 namespace Fortitude.Client;
 
@@ -500,7 +501,7 @@ public sealed record FortitudeResponse
     /// </summary>
     public FortitudeResponse WithRetryAfter(int? seconds)
     {
-        return seconds == null ? this : WithHeader("Retry-After", seconds.Value.ToString());
+        return seconds == null ? this : WithHeader("Retry-After", seconds.Value.ToString(CultureInfo.InvariantCulture));
     }
 
     #endregion

@@ -22,7 +22,7 @@ public sealed class YamlHandlerStore : IDisposable
     ///     The current handler set. Replaced wholesale on reload rather than mutated, so request
     ///     threads always iterate a stable snapshot.
     /// </summary>
-    private volatile IReadOnlyList<FortitudeHandler> _handlers = [];
+    private volatile FortitudeHandler[] _handlers = [];
 
     /// <summary>Per-file load results, for display and diagnostics.</summary>
     private volatile IReadOnlyList<YamlHandlerFile> _files = [];
@@ -110,7 +110,7 @@ public sealed class YamlHandlerStore : IDisposable
             var files = FortitudeYamlLoader.LoadHandlerFiles(Directory, Scenarios);
 
             _files = files;
-            _handlers = files.SelectMany(f => f.Handlers).ToList();
+            _handlers = files.SelectMany(f => f.Handlers).ToArray();
 
             foreach (var failed in files.Where(f => f.HasError))
                 _logger.LogError(
@@ -119,7 +119,7 @@ public sealed class YamlHandlerStore : IDisposable
 
             _logger.LogInformation(
                 "Loaded {HandlerCount} YAML handler(s) from {FileCount} file(s) in {Directory}",
-                _handlers.Count, files.Count, Directory);
+                _handlers.Length, files.Count, Directory);
         }
 
         OnReloaded?.Invoke();

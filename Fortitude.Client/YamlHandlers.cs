@@ -41,7 +41,7 @@ public static class FortitudeYamlLoader
         {
             var part = templateParts[i];
 
-            if (!part.StartsWith("{") || !part.EndsWith("}")) continue;
+            if (!part.StartsWith('{') || !part.EndsWith('}')) continue;
             var key = part[1..^1];
             values[key] = pathParts[i];
         }
@@ -484,7 +484,7 @@ public static class FortitudeYamlLoader
             InjectJson(engine, doc.RootElement);
 
             var result = engine.Evaluate(jsExpression).ToObject();
-            return System.Convert.ToBoolean(result);
+            return System.Convert.ToBoolean(result, CultureInfo.InvariantCulture);
         }
         catch
         {

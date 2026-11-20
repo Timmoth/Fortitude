@@ -241,7 +241,7 @@ public static class FortitudeYamlGenerator
         return builder.ToString();
     }
 
-    private static void AddHeader(IDictionary<string, string> headers, string raw)
+    private static void AddHeader(Dictionary<string, string> headers, string raw)
     {
         var separator = raw.IndexOf(':');
         if (separator <= 0) return;

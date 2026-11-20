@@ -143,7 +143,7 @@ public class FortitudeHandler
         if (!Enabled) return false;
         if (IsExhausted) return false;
         if (Scenario is { } scenario && !scenario.IsSatisfied()) return false;
-        if (_methods.Any() && !_methods.Contains(req.Method)) return false;
+        if (_methods.Count > 0 && !_methods.Contains(req.Method)) return false;
 
         if (_routeTemplate != null)
         {
@@ -183,7 +183,7 @@ public class FortitudeHandler
         FortitudeRequest req,
         CancellationToken cancellationToken = default)
     {
-        if (req == null) throw new ArgumentNullException(nameof(req));
+        ArgumentNullException.ThrowIfNull(req);
 
         _receivedRequests.Enqueue(req);
         Interlocked.Increment(ref _callCount);
@@ -299,7 +299,13 @@ public class FortitudeHandler
     ///     One pending <see cref="WaitForRequestAsync" /> call: the task to complete, the
     ///     caller's filter, and the timeout that abandons it.
     /// </summary>
-    private sealed class Waiter(Func<FortitudeRequest, bool>? predicate)
+    /// <remarks>
+    ///     Disposable because it owns the <see cref="CancellationTokenSource" /> behind the
+    ///     timeout. Both paths out of a wait - the request arriving, and the timeout firing -
+    ///     already release it; implementing the interface makes that ownership explicit rather
+    ///     than something a reader has to verify by tracing every exit.
+    /// </remarks>
+    private sealed class Waiter(Func<FortitudeRequest, bool>? predicate) : IDisposable
     {
         private readonly TaskCompletionSource<FortitudeRequest?> _tcs =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -342,6 +348,11 @@ public class FortitudeHandler
             _cts?.Dispose();
             _cts = null;
         }
+
+        public void Dispose()
+        {
+            Cleanup();
+        }
     }
 
     /// <summary>
@@ -353,7 +364,7 @@ public class FortitudeHandler
         var parts = new List<string>();
 
         // Methods
-        if (_methods.Any())
+        if (_methods.Count > 0)
             parts.Add($"[{string.Join(", ", _methods)}]");
         else
             parts.Add("[ANY]");
@@ -362,7 +373,7 @@ public class FortitudeHandler
         parts.Add(_route ?? "*");
 
         // Query parameters
-        if (_queryParams.Any())
+        if (_queryParams.Count > 0)
         {
             var qp = string.Join("&",
                 _queryParams.Select(kvp => $"{kvp.Key}={kvp.Value}"));
@@ -370,7 +381,7 @@ public class FortitudeHandler
         }
 
         // Headers
-        if (_headers.Any())
+        if (_headers.Count > 0)
         {
             var hdr = string.Join(", ",
                 _headers.Select(kvp => $"{kvp.Key}={kvp.Value}"));

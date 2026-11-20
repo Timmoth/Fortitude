@@ -15,7 +15,7 @@ public static class FortitudeHandlerExtensions
     /// <returns>A <see cref="FortitudeHandlerBuilder" /> for fluent configuration.</returns>
     public static FortitudeHandlerBuilder Accepts(this FortitudeClient client)
     {
-        if (client == null) throw new ArgumentNullException(nameof(client));
+        ArgumentNullException.ThrowIfNull(client);
         return new FortitudeHandlerBuilder(client);
     }
 }
@@ -296,8 +296,7 @@ public class FortitudeHandlerBuilder
     /// </summary>
     public FortitudeHandlerBuilder QueryParams(Dictionary<string, string> parameters)
     {
-        if (parameters == null)
-            throw new ArgumentNullException(nameof(parameters));
+        ArgumentNullException.ThrowIfNull(parameters);
 
         foreach (var kvp in parameters)
             QueryParam(kvp.Key, kvp.Value);
@@ -357,8 +356,7 @@ public class FortitudeHandlerBuilder
     /// </summary>
     public FortitudeHandlerBuilder JsonBody<T>(Func<T, bool> predicate, JsonSerializerOptions? options = null)
     {
-        if (predicate == null)
-            throw new ArgumentNullException(nameof(predicate));
+        ArgumentNullException.ThrowIfNull(predicate);
 
         return Body(body =>
         {
@@ -603,7 +601,7 @@ public class FortitudeHandlerBuilder
     /// <returns>The created handler.</returns>
     public FortitudeHandler Returns(Action<FortitudeRequest, FortitudeResponse> responder)
     {
-        if (responder == null) throw new ArgumentNullException(nameof(responder));
+        ArgumentNullException.ThrowIfNull(responder);
 
         responder = WrapWithRandomFailure(responder);
 
@@ -635,7 +633,7 @@ public class FortitudeHandlerBuilder
     /// <returns>The created handler.</returns>
     public FortitudeHandler Returns(Func<FortitudeRequest, FortitudeResponse, Task> asyncResponder)
     {
-        if (asyncResponder == null) throw new ArgumentNullException(nameof(asyncResponder));
+        ArgumentNullException.ThrowIfNull(asyncResponder);
 
         var handler = new FortitudeHandler(
             _methods,

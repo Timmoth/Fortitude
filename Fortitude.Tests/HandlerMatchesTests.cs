@@ -811,5 +811,5 @@ public class HandlerMatchesTests(ITestOutputHelper output)
         ];
     }
 
-    private record TestDto(int Id);
+    private sealed record TestDto(int Id);
 }

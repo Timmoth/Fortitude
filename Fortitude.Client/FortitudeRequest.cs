@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
+using System.Globalization;
 
 namespace Fortitude.Client;
 
@@ -120,8 +121,8 @@ public record FortitudeRequest
     /// <exception cref="ArgumentNullException">Thrown if the context or context.Request is null.</exception>
     public static async Task<FortitudeRequest> FromHttpContext(HttpContext ctx, Guid? requestId = null)
     {
-        if (ctx == null) throw new ArgumentNullException(nameof(ctx));
-        if (ctx.Request == null) throw new ArgumentNullException(nameof(ctx.Request));
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(ctx.Request);
 
         ctx.Request.EnableBuffering();
 
@@ -189,8 +190,7 @@ public record FortitudeRequest
     public static async Task<FortitudeRequest> FromHttpRequestMessage(
         HttpRequestMessage requestMessage, Guid? requestId = null)
     {
-        if (requestMessage == null)
-            throw new ArgumentNullException(nameof(requestMessage));
+        ArgumentNullException.ThrowIfNull(requestMessage);
 
         var uri = requestMessage.RequestUri
                   ?? throw new ArgumentException("HttpRequestMessage.RequestUri must not be null.");
@@ -302,7 +302,7 @@ public record FortitudeRequest
         sb.Append("curl");
 
         // Method
-        sb.Append($" -X {Method}");
+        sb.Append(CultureInfo.InvariantCulture, $" -X {Method}");
 
         // Headers. A Cookie header and the parsed Cookies are the same thing arriving by two
         // routes, so emitting both would send every cookie twice.
@@ -312,14 +312,14 @@ public record FortitudeRequest
                 continue;
 
             foreach (var value in header.Value)
-                sb.Append($" -H {FortitudeText.ShellQuote($"{header.Key}: {value}")}");
+                sb.Append(CultureInfo.InvariantCulture, $" -H {FortitudeText.ShellQuote($"{header.Key}: {value}")}");
         }
 
         // Cookies (cURL cookie header)
         if (Cookies.Count > 0)
         {
             var cookieString = string.Join("; ", Cookies.Select(c => $"{c.Key}={c.Value}"));
-            sb.Append($" -H {FortitudeText.ShellQuote($"Cookie: {cookieString}")}");
+            sb.Append(CultureInfo.InvariantCulture, $" -H {FortitudeText.ShellQuote($"Cookie: {cookieString}")}");
         }
 
         // Body
@@ -329,17 +329,17 @@ public record FortitudeRequest
         {
             if (FortitudeText.TryDecodeUtf8(Body, out var bodyString))
             {
-                sb.Append($" --data {FortitudeText.ShellQuote(bodyString)}");
+                sb.Append(CultureInfo.InvariantCulture, $" --data {FortitudeText.ShellQuote(bodyString)}");
             }
             else
             {
-                sb.Append($" --data-binary {FortitudeText.ShellQuote(Convert.ToBase64String(Body))}");
+                sb.Append(CultureInfo.InvariantCulture, $" --data-binary {FortitudeText.ShellQuote(Convert.ToBase64String(Body))}");
                 binaryNote = " # body was not valid UTF-8 and is base64 encoded";
             }
         }
 
         // Final URL
-        sb.Append($" {FortitudeText.ShellQuote(Url)}");
+        sb.Append(CultureInfo.InvariantCulture, $" {FortitudeText.ShellQuote(Url)}");
 
         if (binaryNote != null)
             sb.Append(binaryNote);

@@ -134,7 +134,7 @@ public class PortReservationService
 
             var addressesFeature = server.Features.Get<IServerAddressesFeature>();
 
-            if (addressesFeature == null || !addressesFeature.Addresses.Any())
+            if (addressesFeature == null || addressesFeature.Addresses.Count == 0)
             {
                 _logger.LogWarning(
                     "PortReservationService: No server addresses were discovered. " +

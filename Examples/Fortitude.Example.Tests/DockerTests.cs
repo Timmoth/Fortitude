@@ -7,6 +7,8 @@ using Microsoft.Extensions.Configuration;
 using Xunit.Abstractions;
 using Xunit; 
 
+namespace Fortitude.Example.Api;
+
 public sealed class DockerTests 
     : IClassFixture<WebApplicationFactory<Fortitude.Example.Api.Program>>, 
       IClassFixture<DockerContainerFixture> 

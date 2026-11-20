@@ -31,7 +31,7 @@ public class FortitudeMiddleware(
 
     public async Task InvokeAsync(HttpContext ctx)
     {
-        if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+        ArgumentNullException.ThrowIfNull(ctx);
 
         // Ignore internal routes
         if (ctx.Request.Path.StartsWithSegments("/fortitude", StringComparison.OrdinalIgnoreCase))
