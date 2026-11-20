@@ -22,11 +22,27 @@ public static class FortitudeProxy
     ///     container-built <see cref="HttpClient" /> is itself intercepted, so the proxy would
     ///     call straight back into the handler that invoked it.
     /// </remarks>
+    /// <summary>
+    ///     How long an upstream call may take before it is reported as a gateway failure.
+    /// </summary>
+    /// <remarks>
+    ///     Declared before <c>Upstream</c> on purpose: static initialisers run in declaration
+    ///     order, and an <see cref="HttpClient.Timeout" /> of <see cref="TimeSpan.Zero" />
+    ///     throws.
+    /// </remarks>
+    public static readonly TimeSpan DefaultUpstreamTimeout = TimeSpan.FromSeconds(30);
+
     private static readonly HttpClient Upstream = new(new SocketsHttpHandler
     {
         AllowAutoRedirect = false,
         UseCookies = false
-    });
+    })
+    {
+        // Well inside HttpClient's 100 second default. On that default an unresponsive
+        // upstream surfaces as a 504 from Fortitude while the proxy call is still running
+        // behind it, holding a connection nothing is waiting for.
+        Timeout = DefaultUpstreamTimeout
+    };
 
     /// <summary>Headers that describe a specific connection and must not be forwarded.</summary>
     private static readonly string[] HopByHopHeaders =

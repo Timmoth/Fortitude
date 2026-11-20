@@ -47,7 +47,12 @@ public class PendingRequestStore
 
         timeout ??= TimeSpan.FromSeconds(Settings.DefaultResponseTimeoutSeconds);
 
-        var delayTask = Task.Delay(timeout.Value);
+        // The timer is cancelled as soon as the response arrives. Left running, every
+        // completed request would keep a timer alive for the full timeout, so a server under
+        // load carries one pending timer per request it has already answered.
+        using var timeoutCts = new CancellationTokenSource();
+
+        var delayTask = Task.Delay(timeout.Value, timeoutCts.Token);
         var completedTask = await Task.WhenAny(tcs.Task, delayTask).ConfigureAwait(false);
 
         // Remove the TCS to prevent memory leak
@@ -59,6 +64,8 @@ public class PendingRequestStore
             throw new TimeoutException(
                 $"Response for request {id} timed out after {timeout.Value.TotalSeconds} seconds.");
         }
+
+        await timeoutCts.CancelAsync().ConfigureAwait(false);
 
         // Return the completed response
         return await tcs.Task.ConfigureAwait(false);

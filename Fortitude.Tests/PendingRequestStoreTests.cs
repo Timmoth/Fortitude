@@ -28,6 +28,29 @@ public class PendingRequestStoreTests
     }
 
     [Fact]
+    public async Task AnAnsweredRequestReturnsWithoutWaitingOutItsTimeout()
+    {
+        // The timeout is raced against the response, and the loser's timer is cancelled.
+        // Left running, every answered request would hold a timer for the full timeout, so a
+        // server under load accumulates one per request it has already dealt with.
+        var store = Create();
+        var stopwatch = Stopwatch.StartNew();
+
+        for (var i = 0; i < 200; i++)
+        {
+            var id = Guid.NewGuid();
+            var waiting = store.WaitForResponse(id, TimeSpan.FromMinutes(5));
+            store.Complete(new FortitudeResponse(id).Ok("done"));
+            await waiting;
+        }
+
+        stopwatch.Stop();
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10),
+            $"200 answered requests took {stopwatch.ElapsedMilliseconds}ms.");
+    }
+
+    [Fact]
     public async Task NoResponseMeansATimeout()
     {
         var store = Create();

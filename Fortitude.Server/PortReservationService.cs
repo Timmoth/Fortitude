@@ -15,9 +15,14 @@ namespace Fortitude.Server;
 public class PortReservationService
 {
     /// <summary>
-    ///     Set of all ports that the server is currently bound to.
+    ///     Ports the server is bound to, published as one immutable array.
     /// </summary>
-    private readonly HashSet<int> _activePorts = new();
+    /// <remarks>
+    ///     Written only by <see cref="Initialize" /> and replaced wholesale, so readers on
+    ///     request threads never observe a collection mid-mutation. The previous mutable
+    ///     <see cref="HashSet{T}" /> was filled under a lock but read without one.
+    /// </remarks>
+    private volatile int[] _activePorts = [];
 
     private readonly object _initializationLock = new();
     private readonly ILogger<PortReservationService> _logger;
@@ -41,7 +46,7 @@ public class PortReservationService
     /// <summary>
     ///     Gets a snapshot of all ports the server is currently bound to.
     /// </summary>
-    public IReadOnlyCollection<int> ActivePorts => _activePorts.ToList().AsReadOnly();
+    public IReadOnlyCollection<int> ActivePorts => _activePorts;
 
     /// <summary>
     ///     Gets a snapshot of all ports currently reserved.
@@ -139,25 +144,26 @@ public class PortReservationService
                 return;
             }
 
+            var discovered = new HashSet<int>();
+
             foreach (var address in addressesFeature.Addresses)
                 try
                 {
                     var uri = new Uri(address);
 
-                    if (uri.Port > 0)
-                    {
-                        _activePorts.Add(uri.Port);
+                    if (uri.Port > 0 && discovered.Add(uri.Port))
                         _logger.LogInformation("Detected active port: {Port}", uri.Port);
-                    }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to parse server address: {Address}", address);
                 }
 
+            // Published as a single assignment, after every port is known.
+            _activePorts = discovered.ToArray();
             _initialized = true;
 
-            if (!_activePorts.Any())
+            if (_activePorts.Length == 0)
                 _logger.LogWarning("PortReservationService: No valid ports extracted from server addresses.");
         }
     }
