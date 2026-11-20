@@ -30,6 +30,7 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 
 ## Docs
 
+*   [installation](./docs/installation.md)
 *   [mocking-apis](./docs/mocking.md)
 *   [configuration](./docs/configuration.md)
 *   [architecture](./docs/architecture.md)
@@ -43,6 +44,10 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 *   [record-and-replay](./docs/record-and-replay.md)
 
 ### Running the Fortitude Server via Docker
+
+The image moves to GHCR with the next release and is not published there yet — see
+[installation](./docs/installation.md) for what to use until it is, and for running the
+server without Docker.
 
 ```bash
 # Pull the latest Fortitude Server image:
@@ -95,25 +100,26 @@ dotnet test ./Examples/Fortitude.Example.Tests
 
 **Make sure to add the NuGet package to your test project**
 
-Fortitude is published to [GitHub Packages](https://github.com/Timmoth/Fortitude/packages),
-not to nuget.org. GitHub Packages requires authentication even for public packages, so add
-the feed once with a personal access token that has the `read:packages` scope:
+Fortitude is published to
+[GitHub Packages](https://github.com/Timmoth?tab=packages&repo_name=Fortitude), not to
+nuget.org, and GitHub Packages requires authentication even for public packages. Add the feed
+once with a **classic** token carrying the `read:packages` scope:
 
 ```bash
 dotnet nuget add source https://nuget.pkg.github.com/Timmoth/index.json \
   --name fortitude \
   --username <your-github-username> \
-  --password <token-with-read:packages> \
+  --password <classic-token-with-read:packages> \
   --store-password-in-clear-text
-```
 
-In CI, the repository's own `GITHUB_TOKEN` works as the password. Committing a
-`nuget.config` with the source is the usual way to avoid everyone running this by hand.
-
-```bash
-# Then install via the .NET CLI:
 dotnet add package Fortitude
 ```
+
+In CI the repository's own `GITHUB_TOKEN` works as the password.
+
+**[installation](./docs/installation.md)** covers the committed `nuget.config` most teams
+want instead, the click-through for Visual Studio, VS Code and Rider, and what each
+authentication failure means.
 
 ## Quick start
 
