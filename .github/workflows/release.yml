@@ -27,7 +27,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   # GHCR requires a lowercase path, so this is spelled out rather than derived
   # from github.repository_owner, which carries the owner's original casing.
-  IMAGE: ghcr.io/timmoth/fortitude-server
+  IMAGE: ghcr.io/timmoth/fortitude
 
 jobs:
   version:

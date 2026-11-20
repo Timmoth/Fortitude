@@ -58,7 +58,7 @@ Versions before 10.2.0 predate this file; see the git history for those.
 ### Changed
 
 - **The container image is published to GHCR instead of Docker Hub**, as
-  `ghcr.io/timmoth/fortitude-server`. `aptacode/fortitude-server` is no longer updated, so
+  `ghcr.io/timmoth/fortitude`. `aptacode/fortitude-server` is no longer updated, so
   pull the new path. Publishing needs no stored secret, which is what the Docker Hub push
   had always lacked: it was never configured and had to be done by hand.
 - **Published to GitHub Packages instead of nuget.org.** Installing now requires

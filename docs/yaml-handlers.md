@@ -180,7 +180,7 @@ If a request header has multiple values, the first value is used for templating.
 ## Using YAML with Docker
 Mount or pass your YAML file into the Fortitude Server container:
 ```bash
- docker run -p 8080:8080 -v ./config:/app/config ghcr.io/timmoth/fortitude-server:latest
+ docker run -p 8080:8080 -v ./config:/app/config ghcr.io/timmoth/fortitude:latest
 ```
 Fortitude will load and activate all handlers from the YAML file at startup.
 ## Editing handlers live via the web UI
@@ -300,7 +300,7 @@ Handler files are read from `Settings:ConfigDirectory`, which defaults to a `con
 beside the executable - the path the Docker image expects a volume at:
 
 ```bash
-docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config ghcr.io/timmoth/fortitude-server:latest
+docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config ghcr.io/timmoth/fortitude:latest
 ```
 
 The directory is searched recursively, and both `.yaml` and `.yml` are picked up. Files load in
