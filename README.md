@@ -8,12 +8,12 @@ _Fortitude spins up a local mock server so you can fluently configure HTTP route
 <p align="center">
   <a href="https://github.com/Timmoth/Fortitude/actions/workflows/ci.yml"><img src="https://github.com/Timmoth/Fortitude/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
   <a href="https://github.com/Timmoth/Fortitude/packages"><img src="https://img.shields.io/badge/package-GitHub%20Packages-2b3137?logo=github" alt="GitHub Packages"/></a>
-  <a href="https://hub.docker.com/r/aptacode/fortitude-server"><img src="https://img.shields.io/docker/pulls/aptacode/fortitude-server.svg" alt="Docker pulls"/></a>
+  <a href="https://github.com/Timmoth/Fortitude/pkgs/container/fortitude"><img src="https://img.shields.io/badge/image-ghcr.io-2b3137?logo=docker&logoColor=white" alt="Container image"/></a>
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/Timmoth/Fortitude.svg" alt="License"/></a>
 </p>
 
 [Package](https://github.com/Timmoth/Fortitude/packages) - 
-[Docker](https://hub.docker.com/r/aptacode/fortitude-server)
+[Container image](https://github.com/Timmoth/Fortitude/pkgs/container/fortitude)
 
 ## What is Fortitude?
 Fortitude is a .NET testing utility that lets you control and simulate external HTTP APIs directly from your tests. It’s perfect for functional and behavioral testing when your system under test (SUT) depends on services that are unavailable, difficult to run locally, or expensive to maintain.
@@ -46,16 +46,16 @@ Fortitude keeps expected behavior close to the test code, increases code coverag
 
 ```bash
 # Pull the latest Fortitude Server image:
-docker pull aptacode/fortitude-server:latest
+docker pull ghcr.io/timmoth/fortitude:latest
 
 # Run on a single specific port
-docker run -e PORT=5005 -p 5005:5005 aptacode/fortitude-server:latest
+docker run -e PORT=5005 -p 5005:5005 ghcr.io/timmoth/fortitude:latest
 
 # Run with a port range (recommended for parallel test execution)
-docker run -e PORTS=5000-5005 -p 5000-5005:5000-5005 aptacode/fortitude-server:latest
+docker run -e PORTS=5000-5005 -p 5000-5005:5000-5005 ghcr.io/timmoth/fortitude:latest
 
 # [optional] pass through YAML defined handlers
-docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config aptacode/fortitude-server:latest
+docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config ghcr.io/timmoth/fortitude:latest
 ```
 
 ### Configuration
@@ -86,7 +86,7 @@ To run the example tests:
 dotnet run --project ./Fortitude.Server/
 
 # Or run on a single fixed port
-docker run -e PORT=5005 -p 5005:5005 aptacode/fortitude-server:latest
+docker run -e PORT=5005 -p 5005:5005 ghcr.io/timmoth/fortitude:latest
 
 # Run the tests
 dotnet test ./Examples/Fortitude.Example.Tests

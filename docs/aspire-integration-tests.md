@@ -24,16 +24,21 @@ Your Aspire `AppHost` defines your services and how they connect.
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var fortitudeServer = builder.AddProject<Fortitude_Server>("fortitude-server")
+var fortitudeServer = builder.AddDotnetProject("fortitude-server", "../../Fortitude.Server/Fortitude.Server.csproj")
     .WithEnvironment("Settings:Broadcast", "true");
 
-var exampleApi = builder.AddProject<Fortitude_Example_Api>("example-api")
+var exampleApi = builder.AddDotnetProject("example-api", "../Fortitude.Example.Api/Fortitude.Example.Api.csproj")
     .WithReference(fortitudeServer)
     .WithEnvironment("ExternalApi:BaseUrl", fortitudeServer.GetEndpoint("http"))
     .WaitFor(fortitudeServer);
 
 builder.Build().Run();
 ```
+
+> Aspire 17 replaced the generated `AddProject<TProject>` with the path-based
+> `AddDotnetProject` from the `Aspire.Hosting.Dotnet` package. On Aspire 13 and earlier this
+> reads `builder.AddProject<Fortitude_Server>("fortitude-server")` with a `using Projects;`
+> at the top of the file.
 
 In the `AppHost` we need to:
 

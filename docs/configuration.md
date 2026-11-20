@@ -19,7 +19,7 @@ on it. That is what keeps concurrent tests isolated, so give the server at least
 as you expect simultaneous clients:
 
 ```bash
-docker run -e PORTS=5000-5005 -p 5000-5005:5000-5005 aptacode/fortitude-server:latest
+docker run -e PORTS=5000-5005 -p 5000-5005:5000-5005 ghcr.io/timmoth/fortitude:latest
 ```
 
 A client that cannot reserve a port still connects, but becomes *unrouted*: it receives
@@ -61,7 +61,7 @@ Searched recursively; both `.yaml` and `.yml` are recognised. Relative paths res
 the application directory. The default is the path the Docker image expects a volume at:
 
 ```bash
-docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config aptacode/fortitude-server:latest
+docker run -e PORT=5005 -p 5005:5005 -v ./config:/app/config ghcr.io/timmoth/fortitude:latest
 ```
 
 ### `Settings:HotReload`
@@ -107,7 +107,7 @@ docker run \
   -e Settings__HotReload=false \
   -p 5000-5005:5000-5005 \
   -v ./config:/app/config:ro \
-  aptacode/fortitude-server:latest
+  ghcr.io/timmoth/fortitude:latest
 ```
 
 Mocking still works; nothing can reconfigure it over the network, and the handler definitions
