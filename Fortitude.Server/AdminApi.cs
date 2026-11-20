@@ -116,17 +116,26 @@ public static class AdminApi
             var recent = tracker.Requests
                 .Reverse()
                 .Take(take)
-                .Select(r => new RecordedRequest(
-                    r.RequestId,
-                    r.Time,
-                    r.Method,
-                    r.Route,
-                    r.RawQuery,
-                    r.Headers,
-                    r.Body == null ? null : System.Text.Encoding.UTF8.GetString(r.Body),
-                    tracker.GetResponse(r.RequestId) is { } response
-                        ? new RecordedResponse(response.Status, response.ContentType)
-                        : null))
+                .Select(r =>
+                {
+                    // A binary body decoded as UTF-8 would come back as a string of
+                    // replacement characters that looks like a corrupt payload rather than a
+                    // body this endpoint cannot render as text.
+                    var isText = FortitudeText.TryDecodeUtf8(r.Body, out var body);
+
+                    return new RecordedRequest(
+                        r.RequestId,
+                        r.Time,
+                        r.Method,
+                        r.Route,
+                        r.RawQuery,
+                        r.Headers,
+                        isText && r.Body is { Length: > 0 } ? body : null,
+                        !isText ? System.Convert.ToBase64String(r.Body!) : null,
+                        tracker.GetResponse(r.RequestId) is { } response
+                            ? new RecordedResponse(response.Status, response.ContentType)
+                            : null);
+                })
                 .ToList();
 
             return Results.Ok(new RequestListResponse(tracker.TotalRequests, tracker.RetainedRequests, recent));
@@ -159,6 +168,15 @@ public static class AdminApi
     public sealed record RequestListResponse(long Total, int Retained, IReadOnlyList<RecordedRequest> Requests);
 
     /// <summary>One observed request and the response it received.</summary>
+    /// <param name="Id">The request's identifier.</param>
+    /// <param name="Time">When the request was observed.</param>
+    /// <param name="Method">HTTP method.</param>
+    /// <param name="Route">Request path.</param>
+    /// <param name="Query">Raw query string, including the leading <c>?</c>.</param>
+    /// <param name="Headers">Request headers, with every value.</param>
+    /// <param name="Body">The body as text, or null if it was empty or is not valid UTF-8.</param>
+    /// <param name="BodyBase64">The body as base64, set only when it is not valid UTF-8.</param>
+    /// <param name="Response">The response the request received, if one was recorded.</param>
     public sealed record RecordedRequest(
         Guid Id,
         DateTimeOffset Time,
@@ -167,6 +185,7 @@ public static class AdminApi
         string Query,
         IReadOnlyDictionary<string, string[]> Headers,
         string? Body,
+        string? BodyBase64,
         RecordedResponse? Response);
 
     /// <summary>The response to an observed request.</summary>

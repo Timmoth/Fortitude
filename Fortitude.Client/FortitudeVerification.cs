@@ -1,4 +1,5 @@
 using System.Text;
+using System.Globalization;
 
 namespace Fortitude.Client;
 
@@ -103,12 +104,12 @@ public static class FortitudeVerification
 
     private static string Requests(int count) => count == 1 ? "1 request" : $"{count} requests";
 
-    private static string Describe(FortitudeHandler handler, string problem, IReadOnlyList<FortitudeRequest> seen)
+    private static string Describe(FortitudeHandler handler, string problem, List<FortitudeRequest> seen)
     {
         var message = new StringBuilder();
 
         message.AppendLine(problem);
-        message.AppendLine($"  Handler: {handler}");
+        message.AppendLine(CultureInfo.InvariantCulture, $"  Handler: {handler}");
 
         if (seen.Count == 0)
         {
@@ -118,10 +119,10 @@ public static class FortitudeVerification
 
         message.AppendLine("  It received:");
         foreach (var request in seen.Take(10))
-            message.AppendLine($"    {request.Method} {request.Route}{request.RawQuery}");
+            message.AppendLine(CultureInfo.InvariantCulture, $"    {request.Method} {request.Route}{request.RawQuery}");
 
         if (seen.Count > 10)
-            message.AppendLine($"    ... and {seen.Count - 10} more");
+            message.AppendLine(CultureInfo.InvariantCulture, $"    ... and {seen.Count - 10} more");
 
         return message.ToString().TrimEnd();
     }

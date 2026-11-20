@@ -19,6 +19,17 @@ public class RequestTracker
     private readonly Queue<FortitudeRequest> _requests = new();
     private readonly Dictionary<Guid, FortitudeResponse> _responses = new();
 
+    /// <summary>
+    ///     The ids currently in <see cref="_requests" />.
+    /// </summary>
+    /// <remarks>
+    ///     Kept alongside the queue purely so recording a response is a hash lookup. Scanning
+    ///     the queue instead meant every single response walked up to <see cref="Capacity" />
+    ///     entries while holding the lock the live UI also contends for. Request ids are
+    ///     freshly generated per request, so the set and the queue stay one to one.
+    /// </remarks>
+    private readonly HashSet<Guid> _retained = new();
+
     private long _totalRequests;
 
     /// <summary>
@@ -67,11 +78,13 @@ public class RequestTracker
         lock (_lock)
         {
             _requests.Enqueue(req);
+            _retained.Add(req.RequestId);
 
             // Drop the response alongside its request; keeping it would grow without bound.
             while (_requests.Count > Capacity)
             {
                 var evicted = _requests.Dequeue();
+                _retained.Remove(evicted.RequestId);
                 _responses.Remove(evicted.RequestId);
             }
         }
@@ -88,7 +101,7 @@ public class RequestTracker
         {
             // If the request has already been evicted there is nothing to attach this to,
             // and storing it would reintroduce the unbounded growth.
-            if (!_requests.Any(r => r.RequestId == response.RequestId))
+            if (!_retained.Contains(response.RequestId))
                 return;
 
             _responses[response.RequestId] = response;
@@ -112,6 +125,7 @@ public class RequestTracker
         lock (_lock)
         {
             _requests.Clear();
+            _retained.Clear();
             _responses.Clear();
         }
 

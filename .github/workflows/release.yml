@@ -3,11 +3,14 @@ name: Release
 # Publishes the NuGet package and the multi-arch Docker image.
 #
 # Trigger by pushing a tag of the form v10.1.3 — the leading "v" is stripped
-# for the NuGet package version and kept for the Docker tag, matching the
-# convention previously used by hand (see NOTES.md).
+# for the package version and kept for the Docker tag, matching the convention
+# previously used by hand (see NOTES.md).
+#
+# The package goes to GitHub Packages, not nuget.org. Pushing there needs no
+# stored secret: the automatic GITHUB_TOKEN authenticates, given the packages
+# write permission granted on the job below.
 #
 # Required repository secrets:
-#   NUGET_API_KEY       nuget.org push key scoped to the Fortitude package
 #   DOCKERHUB_USERNAME  Docker Hub account with push rights to aptacode/*
 #   DOCKERHUB_TOKEN     Docker Hub access token
 
@@ -43,9 +46,15 @@ jobs:
           echo "Publishing version $VERSION"
 
   nuget:
-    name: Publish NuGet package
+    name: Publish package to GitHub Packages
     needs: version
     runs-on: ubuntu-latest
+
+    # What lets GITHUB_TOKEN push to the registry; without it the push is a 403.
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
 
@@ -55,6 +64,10 @@ jobs:
 
       - name: Test before publishing
         run: dotnet test Fortitude.Tests/Fortitude.Tests.csproj -c Release
+
+      # Verifies the package standing on its own before it is published.
+      - name: Package tests before publishing
+        run: dotnet test Fortitude.Client.Tests/Fortitude.Client.Tests.csproj -c Release
 
       # PackageVersion is overridden here so the tag is the single source of
       # truth; the value in the csproj is only a local-build fallback.
@@ -70,12 +83,16 @@ jobs:
           name: nuget-package
           path: ./artifacts/*
 
-      # The .snupkg symbol package sitting alongside is pushed automatically.
-      - name: Push to nuget.org
+      # GitHub Packages rejects a re-push of a version that already exists, so
+      # --skip-duplicate keeps a re-run of the workflow from failing the job.
+      #
+      # Symbol packages (.snupkg) are not supported by GitHub Packages; symbols
+      # travel inside the .nupkg instead, via the SourceLink settings in the csproj.
+      - name: Push to GitHub Packages
         run: >
           dotnet nuget push "./artifacts/*.nupkg"
-          --api-key ${{ secrets.NUGET_API_KEY }}
-          --source https://api.nuget.org/v3/index.json
+          --api-key ${{ secrets.GITHUB_TOKEN }}
+          --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
           --skip-duplicate
 
   docker:

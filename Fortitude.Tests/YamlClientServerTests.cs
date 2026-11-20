@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 using Xunit.Abstractions;
 
+namespace Tests;
+
 public class YamlClientServerTests(ITestOutputHelper testOutputHelper)
 {
     private async Task<(HttpClient httpClient, FortitudeClient fortitudeClient, HubConnection hubConnection)> Setup(WebApplicationFactory<Program> factory)
@@ -260,7 +262,7 @@ response:
 
         await hubConnection.DisposeAsync();
     }
-    private record TestPayload(string Name, int Age);
+    private sealed record TestPayload(string Name, int Age);
 
     [Fact]
     public async Task FortitudeServer_Matches_WhenJsonBodyPredicateMatches()

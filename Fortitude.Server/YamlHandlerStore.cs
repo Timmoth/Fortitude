@@ -22,7 +22,7 @@ public sealed class YamlHandlerStore : IDisposable
     ///     The current handler set. Replaced wholesale on reload rather than mutated, so request
     ///     threads always iterate a stable snapshot.
     /// </summary>
-    private volatile IReadOnlyList<FortitudeHandler> _handlers = [];
+    private volatile FortitudeHandler[] _handlers = [];
 
     /// <summary>Per-file load results, for display and diagnostics.</summary>
     private volatile IReadOnlyList<YamlHandlerFile> _files = [];
@@ -76,8 +76,15 @@ public sealed class YamlHandlerStore : IDisposable
     /// <summary>
     ///     Matches a request against the YAML handlers, newest definition first.
     /// </summary>
+    /// <param name="request">The request to answer.</param>
+    /// <param name="cancellationToken">
+    ///     Abandons a simulated delay when the caller hangs up, so a disconnected client does
+    ///     not leave the server waiting out latency nobody is listening for.
+    /// </param>
     /// <returns>The response, or null if no YAML handler matched.</returns>
-    public async Task<FortitudeResponse?> HandleIncomingAsync(FortitudeRequest request)
+    public async Task<FortitudeResponse?> HandleIncomingAsync(
+        FortitudeRequest request,
+        CancellationToken cancellationToken = default)
     {
         // Snapshot once: a concurrent reload swaps the reference, it never mutates this list.
         var handler = FortitudeHandler.SelectFor(_handlers, request);
@@ -85,7 +92,7 @@ public sealed class YamlHandlerStore : IDisposable
         if (handler == null)
             return null;
 
-        var response = await handler.HandleRequestAsync(request);
+        var response = await handler.HandleRequestAsync(request, cancellationToken);
 
         _logger.LogInformation("[Incoming]: {Request}", request.ToString());
         _logger.LogInformation("[Handled] {Response}", response);
@@ -103,7 +110,7 @@ public sealed class YamlHandlerStore : IDisposable
             var files = FortitudeYamlLoader.LoadHandlerFiles(Directory, Scenarios);
 
             _files = files;
-            _handlers = files.SelectMany(f => f.Handlers).ToList();
+            _handlers = files.SelectMany(f => f.Handlers).ToArray();
 
             foreach (var failed in files.Where(f => f.HasError))
                 _logger.LogError(
@@ -112,7 +119,7 @@ public sealed class YamlHandlerStore : IDisposable
 
             _logger.LogInformation(
                 "Loaded {HandlerCount} YAML handler(s) from {FileCount} file(s) in {Directory}",
-                _handlers.Count, files.Count, Directory);
+                _handlers.Length, files.Count, Directory);
         }
 
         OnReloaded?.Invoke();

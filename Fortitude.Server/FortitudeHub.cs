@@ -30,7 +30,7 @@ public class FortitudeHub : Hub
     /// <param name="response">The response to complete the request.</param>
     public Task SubmitResponse(FortitudeResponse response)
     {
-        if (response == null) throw new ArgumentNullException(nameof(response));
+        ArgumentNullException.ThrowIfNull(response);
 
         try
         {

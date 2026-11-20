@@ -7,13 +7,12 @@ _Fortitude spins up a local mock server so you can fluently configure HTTP route
 
 <p align="center">
   <a href="https://github.com/Timmoth/Fortitude/actions/workflows/ci.yml"><img src="https://github.com/Timmoth/Fortitude/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <a href="https://www.nuget.org/packages/Fortitude"><img src="https://img.shields.io/nuget/v/Fortitude.svg" alt="NuGet"/></a>
-  <a href="https://www.nuget.org/packages/Fortitude"><img src="https://img.shields.io/nuget/dt/Fortitude.svg" alt="NuGet downloads"/></a>
+  <a href="https://github.com/Timmoth/Fortitude/packages"><img src="https://img.shields.io/badge/package-GitHub%20Packages-2b3137?logo=github" alt="GitHub Packages"/></a>
   <a href="https://hub.docker.com/r/aptacode/fortitude-server"><img src="https://img.shields.io/docker/pulls/aptacode/fortitude-server.svg" alt="Docker pulls"/></a>
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/Timmoth/Fortitude.svg" alt="License"/></a>
 </p>
 
-[NuGet](https://www.nuget.org/packages/Fortitude) - 
+[Package](https://github.com/Timmoth/Fortitude/packages) - 
 [Docker](https://hub.docker.com/r/aptacode/fortitude-server)
 
 ## What is Fortitude?
@@ -96,10 +95,23 @@ dotnet test ./Examples/Fortitude.Example.Tests
 
 **Make sure to add the NuGet package to your test project**
 
-[Fortitude on NuGet](https://www.nuget.org/packages/Fortitude)
+Fortitude is published to [GitHub Packages](https://github.com/Timmoth/Fortitude/packages),
+not to nuget.org. GitHub Packages requires authentication even for public packages, so add
+the feed once with a personal access token that has the `read:packages` scope:
 
 ```bash
-# Install via the .NET CLI:
+dotnet nuget add source https://nuget.pkg.github.com/Timmoth/index.json \
+  --name fortitude \
+  --username <your-github-username> \
+  --password <token-with-read:packages> \
+  --store-password-in-clear-text
+```
+
+In CI, the repository's own `GITHUB_TOKEN` works as the password. Committing a
+`nuget.config` with the source is the usual way to avoid everyone running this by hand.
+
+```bash
+# Then install via the .NET CLI:
 dotnet add package Fortitude
 ```
 

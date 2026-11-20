@@ -152,8 +152,7 @@ public static class FortitudeServer
         string fortitudeBaseUrl,
         ITestOutputHelper logger)
     {
-        if (logger is null)
-            throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
 
         return await ConnectAsync(fortitudeBaseUrl, logger.WriteLine).ConfigureAwait(false);
     }
@@ -175,8 +174,7 @@ public static class FortitudeServer
         if (string.IsNullOrWhiteSpace(fortitudeBaseUrl))
             throw new ArgumentException("Fortitude base URL cannot be null or empty.", nameof(fortitudeBaseUrl));
 
-        if (writeLine is null)
-            throw new ArgumentNullException(nameof(writeLine));
+        ArgumentNullException.ThrowIfNull(writeLine);
 
         var logger = writeLine;
         var fortitude = new FortitudeClient(new TestOutputLogger<FortitudeClient>(logger));
@@ -236,7 +234,7 @@ public static class FortitudeServer
             throw;
         }
 
-        logger.LogInformation("Fortitude server UI live at {Url}...", $"{fortitudeBaseUrl.TrimEnd('/')}/fortitude");
+        LogUiUrl(logger, fortitudeBaseUrl);
 
         return (fortitude, ReplacePort(fortitudeBaseUrl.TrimEnd('/'), port));
     }
@@ -275,7 +273,7 @@ public static class FortitudeServer
             throw;
         }
 
-        logger.LogInformation("Fortitude server UI live at {Url}...", $"{fortitudeBaseUrl.TrimEnd('/')}/fortitude");
+        LogUiUrl(logger, fortitudeBaseUrl);
 
         return (fortitude, ReplacePort(fortitudeBaseUrl.TrimEnd('/'), port));
     }
@@ -316,9 +314,27 @@ public static class FortitudeServer
             throw;
         }
 
-        logger.LogInformation("Fortitude server UI live at {Url}...", $"{fortitudeBaseUrl.TrimEnd('/')}/fortitude");
+        LogUiUrl(logger, fortitudeBaseUrl);
 
         return (fortitude, ReplacePort(fortitudeBaseUrl.TrimEnd('/'), port));
+    }
+
+    /// <summary>
+    ///     Logs where the live UI can be reached, once the client is connected.
+    /// </summary>
+    /// <remarks>
+    ///     The level check is what makes the string worth building: the three call sites all
+    ///     compose the URL, and composing it only to discard it is wasted work when
+    ///     information logging is off.
+    /// </remarks>
+    private static void LogUiUrl(ILogger logger, string fortitudeBaseUrl)
+    {
+        if (!logger.IsEnabled(LogLevel.Information))
+            return;
+
+        logger.LogInformation(
+            "Fortitude server UI live at {Url}...",
+            $"{fortitudeBaseUrl.TrimEnd('/')}/fortitude");
     }
 
     /// <summary>
@@ -394,8 +410,7 @@ public class TestOutputLogger<T> : ILogger<T>
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
         Exception? exception, Func<TState, Exception?, string> formatter)
     {
-        if (formatter == null)
-            throw new ArgumentNullException(nameof(formatter));
+        ArgumentNullException.ThrowIfNull(formatter);
 
         try
         {
@@ -412,7 +427,7 @@ public class TestOutputLogger<T> : ILogger<T>
         }
     }
 
-    private class NullScope : IDisposable
+    private sealed class NullScope : IDisposable
     {
         public static readonly NullScope Instance = new();
 

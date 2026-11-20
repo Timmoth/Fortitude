@@ -1,0 +1,7 @@
+{
+  "//": "Pins the build to the .NET 10 SDK. Without this, dotnet picks the highest SDK installed, which on a machine with a preview of the next release means the solution is built by an SDK nobody else is using. latestFeature takes the newest 10.0.x band available, so CI's 10.0.404 and a local 10.0.100 both satisfy it, and neither rolls forward to 11.",
+  "sdk": {
+    "version": "10.0.100",
+    "rollForward": "latestFeature"
+  }
+}
