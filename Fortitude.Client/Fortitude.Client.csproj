@@ -36,6 +36,7 @@
         <PackageReference Include="Jint" />
         <PackageReference Include="Microsoft.AspNetCore.Http" />
         <PackageReference Include="Microsoft.AspNetCore.Routing" />
+        <PackageReference Include="Microsoft.AspNetCore.WebUtilities" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" />
         <PackageReference Include="Microsoft.Extensions.Http" />
