@@ -12,7 +12,15 @@ separately here.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **Publishing returned to [nuget.org](https://www.nuget.org/packages/Fortitude)**, using
+  Trusted Publishing rather than a stored API key: the release workflow exchanges a GitHub
+  OIDC token for a key that lasts an hour. Installing is plain `dotnet add package Fortitude`
+  again, with no feed to add and no token to create.
+- Symbol packages are published again as `.snupkg`, which nuget.org's symbol server accepts;
+  they had been embedded in the assembly because GitHub Packages has no symbol server.
+- The container image stays on `ghcr.io/timmoth/fortitude`.
 
 ## [10.2.0] - 2026-11-20
 
@@ -73,6 +81,8 @@ Nothing yet.
   authenticating to the feed with a `read:packages` token even though the package is public;
   the README has the one-time setup. Symbols are embedded in the assembly rather than shipped
   as a `.snupkg`, which GitHub Packages does not support.
+  **Reverted in the next release** - publishing is back on nuget.org and needs no token. See
+  the Unreleased section above.
 - **The package targets `net10.0` only.** It previously multi-targeted `net8.0` and `net9.0`
   to reach the then-current LTS; both reached end of life in 2026. Breaking for consumers
   still on those runtimes.
