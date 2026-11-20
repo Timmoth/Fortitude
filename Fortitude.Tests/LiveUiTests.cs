@@ -15,7 +15,7 @@ namespace Tests;
 public sealed class LiveUiTests : IDisposable
 {
     private readonly string _dir = CreateTempDirectory();
-    private readonly TestContext _ctx = new();
+    private readonly BunitContext _ctx = new();
 
     private static string CreateTempDirectory()
     {
