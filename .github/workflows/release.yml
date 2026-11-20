@@ -6,13 +6,12 @@ name: Release
 # for the package version and kept for the Docker tag, matching the convention
 # previously used by hand (see NOTES.md).
 #
-# The package goes to GitHub Packages, not nuget.org. Pushing there needs no
-# stored secret: the automatic GITHUB_TOKEN authenticates, given the packages
-# write permission granted on the job below.
+# Both the package and the image go to GitHub: GitHub Packages for NuGet and
+# GHCR for the container. Neither needs a stored secret — the automatic
+# GITHUB_TOKEN authenticates to both, given the packages: write permission the
+# jobs below declare.
 #
-# Required repository secrets:
-#   DOCKERHUB_USERNAME  Docker Hub account with push rights to aptacode/*
-#   DOCKERHUB_TOKEN     Docker Hub access token
+# No repository secrets are required.
 
 on:
   push:
@@ -26,7 +25,9 @@ on:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  IMAGE: aptacode/fortitude-server
+  # GHCR requires a lowercase path, so this is spelled out rather than derived
+  # from github.repository_owner, which carries the owner's original casing.
+  IMAGE: ghcr.io/timmoth/fortitude-server
 
 jobs:
   version:
@@ -99,6 +100,12 @@ jobs:
     name: Publish Docker image
     needs: version
     runs-on: ubuntu-latest
+
+    # What lets GITHUB_TOKEN push to GHCR; without it the push is a 403.
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
 
@@ -108,8 +115,9 @@ jobs:
 
       - uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/build-push-action@v6
         with:
