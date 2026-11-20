@@ -108,8 +108,9 @@ It depends on a policy that lives on nuget.org, not in this repository. Under
 The policy has to be owned by the account that owns the package, which is `aptacode`, and its
 scope must allow publishing new versions of `Fortitude`.
 
-One repository secret is needed: **`NUGET_USER`**, the nuget.org account's profile name - not
-an email address.
+The workflow names the publishing account (`aptacode`) inline. That is public information and
+authorises nothing on its own - the policy on nuget.org is what does. **No repository secrets
+are required.**
 
 > A new policy on a private repository starts *temporarily active* for 7 days and turns
 > permanent on the first successful publish. If no publish happens in that window it goes

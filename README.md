@@ -100,7 +100,10 @@ dotnet test ./Examples/Fortitude.Example.Tests
 
 **Make sure to add the NuGet package to your test project**
 
+[Fortitude on NuGet](https://www.nuget.org/packages/Fortitude)
+
 ```bash
+# Install via the .NET CLI:
 dotnet add package Fortitude
 ```
 

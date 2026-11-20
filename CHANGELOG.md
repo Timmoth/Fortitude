@@ -81,6 +81,8 @@ separately here.
   authenticating to the feed with a `read:packages` token even though the package is public;
   the README has the one-time setup. Symbols are embedded in the assembly rather than shipped
   as a `.snupkg`, which GitHub Packages does not support.
+  **Reverted in the next release** - publishing is back on nuget.org and needs no token. See
+  the Unreleased section above.
 - **The package targets `net10.0` only.** It previously multi-targeted `net8.0` and `net9.0`
   to reach the then-current LTS; both reached end of life in 2026. Breaking for consumers
   still on those runtimes.

@@ -16,9 +16,7 @@ name: Release
 #              `release.yml` — see CONTRIBUTING.md.
 #   GHCR       The automatic GITHUB_TOKEN authenticates, given packages: write.
 #
-# Required repository secrets:
-#   NUGET_USER  The nuget.org account the policy belongs to, by profile name —
-#               not an email address.
+# No repository secrets are required.
 
 on:
   push:
@@ -99,7 +97,9 @@ jobs:
         uses: NuGet/login@v1
         id: login
         with:
-          user: ${{ secrets.NUGET_USER }}
+          # The nuget.org profile name that owns the package. Public information,
+          # and the policy on nuget.org is what actually authorises the push.
+          user: aptacode
 
       # --skip-duplicate so re-running the workflow on an already-published
       # version reports success instead of failing the job. The .snupkg sitting
