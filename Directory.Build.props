@@ -3,9 +3,49 @@
     <!--
       Shared build settings for every project in the solution.
 
-      NuGet auditing is enabled for direct *and* transitive packages. Low and
-      moderate advisories surface as warnings; high and critical ones fail the
-      build so a vulnerable dependency can't be merged unnoticed.
+      Language and nullability live here rather than being repeated in each csproj, so a new
+      project cannot quietly opt out of them.
+    -->
+    <PropertyGroup>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
+
+        <!--
+          Keeps the commit sha suffix off InformationalVersion, so version output and the
+          assembly metadata read as a plain version number.
+        -->
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    </PropertyGroup>
+
+    <!--
+      Analysis. Warnings are errors: a warning nobody is forced to read is a warning nobody
+      reads. Any rule that is genuinely not worth following should be turned off explicitly in
+      .editorconfig with a reason, rather than left to scroll past in build output.
+    -->
+    <PropertyGroup>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+        <!--
+          Pinned to a version rather than `latest`. With `latest` the rule set is whatever
+          the SDK in use happens to ship, so the same commit builds clean on one machine and
+          fails on another running a newer patch - which is exactly what happened: the Docker
+          SDK image enabled CA1873 and broke an image build that passed locally. Raise this
+          deliberately, and fix the new findings in that commit.
+        -->
+        <AnalysisLevel>10.0</AnalysisLevel>
+        <AnalysisMode>Recommended</AnalysisMode>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    </PropertyGroup>
+
+    <!--
+      NuGet auditing is enabled for direct *and* transitive packages. Low and moderate
+      advisories surface as warnings; high and critical ones fail the build so a vulnerable
+      dependency can't be merged unnoticed.
+
+      NU1903/NU1904 stay listed explicitly: TreatWarningsAsErrors above does not cover NuGet
+      warnings, which are governed by WarningsAsErrors separately.
     -->
     <PropertyGroup>
         <NuGetAudit>true</NuGetAudit>

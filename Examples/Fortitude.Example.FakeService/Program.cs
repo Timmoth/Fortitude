@@ -1,7 +1,8 @@
 ﻿using Fortitude.Client;
 using Fortitude.Example.Api;
 
-var fortitudeBase = Environment.GetEnvironmentVariable("FORTITUDE_URL") ?? throw new ArgumentNullException("FORTITUDE_URL");
+var fortitudeBase = Environment.GetEnvironmentVariable("FORTITUDE_URL")
+                    ?? throw new InvalidOperationException("FORTITUDE_URL is not set.");
 
 var (fortitude, url) = await FortitudeServer.ConnectAsync(fortitudeBase);
 
@@ -18,7 +19,7 @@ fortitude.Accepts()
         var incoming = req.Body.ToJson<User>()!;
 
         // Simulate creating a new user with an incrementing ID
-        var newId = users.Any() ? users.Max(u => u.Id) + 1 : 1;
+        var newId = users.Count > 0 ? users.Max(u => u.Id) + 1 : 1;
 
         var created = new User(newId, incoming.Name, incoming.Email);
         users.Add(created);

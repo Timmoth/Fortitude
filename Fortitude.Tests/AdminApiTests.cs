@@ -221,6 +221,50 @@ public sealed class AdminApiTests(ITestOutputHelper output) : IDisposable
             .First(r => r.GetProperty("route").GetString() == "/orders");
 
         Assert.Contains("widget", request.GetProperty("body").GetString());
+        Assert.Null(request.GetProperty("bodyBase64").GetString());
+    }
+
+    [Fact]
+    public async Task ABinaryRequestBodyIsReportedAsBase64RatherThanMojibake()
+    {
+        // Decoding an upload as UTF-8 would hand the caller a string of replacement
+        // characters that looks like a corrupt payload rather than a body this endpoint
+        // cannot render as text.
+        byte[] gif = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0xFF, 0xFE, 0x00, 0x3B];
+
+        await using var server = await StartAsync();
+        var (client, port) = await server.ConnectClientAsync(output);
+        client.Accepts().Post().HttpRoute("/upload").Returns((_, res) => res.NoContent());
+
+        using var http = LiveServer.HttpClientFor(port);
+        var content = new ByteArrayContent(gif);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/gif");
+        await http.PostAsync("/upload", content);
+
+        var json = await http.GetFromJsonAsync<JsonElement>("/fortitude/api/requests");
+        var request = json.GetProperty("requests").EnumerateArray()
+            .First(r => r.GetProperty("route").GetString() == "/upload");
+
+        Assert.Null(request.GetProperty("body").GetString());
+        Assert.Equal(Convert.ToBase64String(gif), request.GetProperty("bodyBase64").GetString());
+    }
+
+    [Fact]
+    public async Task AnEmptyRequestBodyIsReportedAsNeither()
+    {
+        await using var server = await StartAsync();
+        var (client, port) = await server.ConnectClientAsync(output);
+        client.Accepts().Get().HttpRoute("/nothing").Returns((_, res) => res.NoContent());
+
+        using var http = LiveServer.HttpClientFor(port);
+        await http.GetAsync("/nothing");
+
+        var json = await http.GetFromJsonAsync<JsonElement>("/fortitude/api/requests");
+        var request = json.GetProperty("requests").EnumerateArray()
+            .First(r => r.GetProperty("route").GetString() == "/nothing");
+
+        Assert.Null(request.GetProperty("body").GetString());
+        Assert.Null(request.GetProperty("bodyBase64").GetString());
     }
 
     [Fact]

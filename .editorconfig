@@ -1,0 +1,64 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+trim_trailing_whitespace = true
+
+[*.{yml,yaml,json,md}]
+indent_size = 2
+
+[*.{cs,csproj,props,targets}]
+indent_size = 4
+
+# ----------------------------------------------------------------- analyzers
+#
+# Directory.Build.props turns warnings into errors, so anything disabled here is a
+# deliberate decision rather than noise someone learned to scroll past. Each entry
+# says why.
+
+[*.cs]
+
+# CA1848: use LoggerMessage delegates instead of the ILogger extension methods.
+# CA1873: don't evaluate a logging argument that may be discarded.
+#
+# Both are performance rules aimed at services logging on a hot path at high volume.
+# CA1873 in particular fires on every argument that is not a constant, so satisfying
+# it means an IsEnabled guard around essentially every log statement.
+#
+# Fortitude is a mock server for tests: its logging is diagnostic, low volume, and
+# read by a human debugging a failing test. Source-generated delegates and level
+# guards at every call site would trade a lot of readability for throughput nobody
+# is short of. Where an argument is genuinely expensive to build - composing a URL,
+# rendering an object - the call site guards itself; see LogUiUrl.
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+
+[{Fortitude.Tests,Fortitude.Client.Tests,Examples}/**.cs]
+
+# CA1305/CA1310: culture-sensitive formatting and comparison.
+#
+# Worth enforcing in the library, where a consumer's locale is not ours to assume.
+# In test code the values are literals written three lines above the assertion, and
+# an explicit InvariantCulture on each one obscures what is being tested.
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1310.severity = none
+
+# CA1861: constant arrays as arguments. Test data is clearer inline, next to the
+# assertion it belongs to, than hoisted into a static field far from its use.
+dotnet_diagnostic.CA1861.severity = none
+
+# CA1707: no underscores in member names.
+#
+# The suite names tests Subject_DoesTheThing, and the underscore is the separator
+# that makes a failure readable in a test runner. This rule is about public API
+# naming; test methods are not API.
+dotnet_diagnostic.CA1707.severity = none
+
+# CA1816: Dispose should call GC.SuppressFinalize.
+#
+# These fixtures implement IDisposable only to delete a temp directory. They are
+# not inherited from and have no finalizer, so the call would be pure ceremony.
+dotnet_diagnostic.CA1816.severity = none

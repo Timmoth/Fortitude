@@ -45,9 +45,31 @@ Versions before 10.2.0 predate this file; see the git history for those.
 - The package now targets `net8.0`, `net9.0` and `net10.0`.
 - Logging accepts any `Action<string>`, so NUnit, MSTest and TUnit users are no longer
   required to go through xUnit's `ITestOutputHelper`.
+- **Binary response bodies in YAML.** `body.base64` serves bytes verbatim, with `contentType`
+  alongside it. Record and replay now writes binary responses this way instead of decoding them
+  as text, so a captured image replays as the image.
+- `GET /fortitude/api/requests` reports a non-UTF-8 request body as `bodyBase64`.
+- A test project covering the package on every framework it targets, run in CI and before
+  release; previously only the `net10.0` build was ever executed.
+- The Docker image is built and smoke tested on every pull request, and a `.dockerignore`
+  keeps local build output out of the build context.
 - CI, release automation and Dependabot.
 
 ### Changed
+
+- **Published to GitHub Packages instead of nuget.org.** Installing now requires
+  authenticating to the feed with a `read:packages` token even though the package is public;
+  the README has the one-time setup. Symbols are embedded in the assembly rather than shipped
+  as a `.snupkg`, which GitHub Packages does not support.
+- **The package targets `net10.0` only.** It previously multi-targeted `net8.0` and `net9.0`
+  to reach the then-current LTS; both reached end of life in 2026. Breaking for consumers
+  still on those runtimes.
+- Analyzers run at Recommended with warnings as errors, pinned to a fixed `AnalysisLevel` so
+  the rule set does not change with the SDK in use. `.editorconfig` records what is disabled
+  and why.
+- The SDK is pinned to the .NET 10 band by `global.json`.
+- Dependencies updated to the newest versions compatible with `net10.0`, including Aspire 17,
+  whose `AddProject<TProject>` is replaced by `AddDotnetProject`.
 
 - **`Settings:Broadcast` now defaults to `false`.** Per-client port routing - the basis of the
   parallel-execution claim - was off by default despite the documentation saying otherwise.
@@ -60,6 +82,10 @@ Versions before 10.2.0 predate this file; see the git history for those.
 - The response timeout is configurable and no longer hard-coded to 5 seconds.
 - Failing to reserve a port no longer kills the client's connection; the client connects as
   unrouted with a warning.
+- A simulated delay now observes the caller's `CancellationToken`, so an `HttpClient.Timeout`
+  or a cancelled request ends the call instead of waiting the delay out.
+- Upstream proxy calls time out after 30 seconds rather than `HttpClient`'s 100 second default.
+- The Docker image runs as a non-root user.
 
 ### Fixed
 
@@ -87,3 +113,18 @@ Versions before 10.2.0 predate this file; see the git history for those.
 - `Microsoft.AspNetCore.SignalR.Common` 10.0.2 carried a known high-severity advisory
   (GHSA-334f-vvp4-7g6p).
 - The test project had no test runner, so its entire suite had been silently skipped.
+- **`ToCurl` produced a broken command for any body containing an apostrophe.** `\'` escapes
+  nothing inside shell single quotes, so the rest of the command was reparsed as separate
+  words; the generated cURL could not even be read back by the handler generator. Cookies were
+  also emitted twice when the request carried them as both a header and parsed values.
+- Binary bodies were decoded with a lenient UTF-8 decoder that substitutes replacement
+  characters and never fails, so `ToCurl`, recorded handler definitions and the admin API all
+  reported unreadable text where bytes should have been preserved.
+- Recording a response was a linear scan of the retained request buffer, under the lock the
+  live UI also uses.
+- Every answered request held a timer open for the full response timeout.
+- `PortReservationService` published its bound ports through a `HashSet` that was written under
+  a lock and read without one.
+- `Aspire.Hosting` 13.6.4 carried high and critical advisories (GHSA-f7vh-h5g3-7jrh,
+  GHSA-4g86-54fm-h9h8) that failed a cold restore, and `Microsoft.AspNetCore.WebUtilities`
+  2.3.12 arrived transitively with a moderate one (GHSA-6527-9fp8-r4x6).

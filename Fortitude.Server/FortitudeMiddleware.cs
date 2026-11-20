@@ -31,7 +31,7 @@ public class FortitudeMiddleware(
 
     public async Task InvokeAsync(HttpContext ctx)
     {
-        if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+        ArgumentNullException.ThrowIfNull(ctx);
 
         // Ignore internal routes
         if (ctx.Request.Path.StartsWithSegments("/fortitude", StringComparison.OrdinalIgnoreCase))
@@ -67,7 +67,7 @@ public class FortitudeMiddleware(
             return;
         }
 
-        var response = await yamlHandlers.HandleIncomingAsync(req);
+        var response = await yamlHandlers.HandleIncomingAsync(req, ctx.RequestAborted);
         if (response != null)
         {
             _tracker.Add(response);

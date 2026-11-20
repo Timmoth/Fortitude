@@ -67,7 +67,9 @@ handlers:
 Note `id: "7"` is quoted. Strings that would otherwise read back as a number or boolean are
 quoted on the way out, so a recording replays with the types the real service sent.
 
-Anything that is not JSON is written as `text`.
+Anything that is not JSON is written as `text`, and anything that is not text at all - an
+image, a gzipped payload - is written as `base64` alongside its `contentType`, so the recording
+replays the exact bytes that were captured rather than a lossy transcription of them.
 
 ## When the upstream is unreachable
 
@@ -84,3 +86,4 @@ unreachable service is not a fixture anyone wants to replay.
   recording, but check fixtures before committing them - a response body can carry secrets of
   its own.
 - **No redirect following.** A `301` or `302` is returned to the caller rather than followed.
+- **Upstream calls time out after 30 seconds.** A slower real service is reported as a `502`.

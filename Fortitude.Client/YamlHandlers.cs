@@ -41,7 +41,7 @@ public static class FortitudeYamlLoader
         {
             var part = templateParts[i];
 
-            if (!part.StartsWith("{") || !part.EndsWith("}")) continue;
+            if (!part.StartsWith('{') || !part.EndsWith('}')) continue;
             var key = part[1..^1];
             values[key] = pathParts[i];
         }
@@ -484,7 +484,7 @@ public static class FortitudeYamlLoader
             InjectJson(engine, doc.RootElement);
 
             var result = engine.Evaluate(jsExpression).ToObject();
-            return System.Convert.ToBoolean(result);
+            return System.Convert.ToBoolean(result, CultureInfo.InvariantCulture);
         }
         catch
         {
@@ -589,6 +589,25 @@ public static class FortitudeYamlLoader
     }
 
     // -------------------------------
+    // Base64 body
+    // -------------------------------
+    // Decoded once, here, so a malformed value is reported as a problem with the definition
+    // file at load time rather than as a 500 on the first request that reaches it.
+    byte[]? base64Body = null;
+    var declaredBase64 = handler.Response.Body?.Base64;
+
+    if (!string.IsNullOrWhiteSpace(declaredBase64))
+        try
+        {
+            base64Body = System.Convert.FromBase64String(declaredBase64.Trim());
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException(
+                $"response.body.base64 is not valid base64: {ex.Message}", ex);
+        }
+
+    // -------------------------------
     // Responder
     // -------------------------------
     void Responder(FortitudeRequest req, FortitudeResponse res)
@@ -614,6 +633,16 @@ public static class FortitudeYamlLoader
         if (!string.IsNullOrWhiteSpace(bodyFile))
         {
             WriteFileBody(res, bodyFile, handler.Response.Body?.ContentType, baseDirectory, templateContext);
+            ApplyResponseHeaders(res, handler, templateContext);
+            return;
+        }
+
+        // Base64 body: bytes reproduced exactly, so it takes precedence over the text and
+        // JSON forms, which both re-encode what they are given.
+        if (base64Body != null)
+        {
+            res.Body = base64Body;
+            res.ContentType = handler.Response.Body?.ContentType ?? "application/octet-stream";
             ApplyResponseHeaders(res, handler, templateContext);
             return;
         }
@@ -815,10 +844,23 @@ public sealed record DelayDefinition
 }
 
 /// <summary>
-///     A response body, as either JSON or plain text. If both are given, JSON wins.
+///     A response body, as JSON, plain text, base64-encoded bytes, or a file. When several
+///     are given the order of precedence is <see cref="File" />, <see cref="Base64" />, then
+///     <see cref="Json" /> over <see cref="Text" />.
 /// </summary>
 public sealed record ResponseBodyDefinition
 {
+    /// <summary>
+    ///     A base64-encoded body, served verbatim. The way to replay a body that is not text
+    ///     at all — an image, a protobuf payload, a gzipped response.
+    /// </summary>
+    /// <remarks>
+    ///     Set <see cref="ContentType" /> alongside it; without one the body is served as
+    ///     <c>application/octet-stream</c>. Templating does not apply, because the bytes are
+    ///     reproduced exactly.
+    /// </remarks>
+    public string? Base64 { get; init; }
+
     /// <summary>
     ///     A JSON body, served as <c>application/json</c>. Values at any depth support
     ///     <c>{{ }}</c> templating, quoted or not.

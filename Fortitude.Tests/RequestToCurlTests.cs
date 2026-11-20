@@ -15,7 +15,8 @@ public class RequestToCurlTests
         string query = "",
         Dictionary<string, string[]>? headers = null,
         Dictionary<string, string>? cookies = null,
-        string? body = null) => new()
+        string? body = null,
+        byte[]? rawBody = null) => new()
     {
         Method = method,
         BaseUrl = "http://localhost",
@@ -25,7 +26,7 @@ public class RequestToCurlTests
         Protocol = "HTTP/1.1",
         Headers = headers ?? new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase),
         Cookies = cookies ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-        Body = body == null ? null : System.Text.Encoding.UTF8.GetBytes(body)
+        Body = rawBody ?? (body == null ? null : System.Text.Encoding.UTF8.GetBytes(body))
     };
 
     [Fact]
@@ -140,5 +141,88 @@ public class RequestToCurlTests
 
         Assert.Contains("/users", yaml);
         Assert.Contains("POST", yaml);
+    }
+
+    [Fact]
+    public void ABodyContainingAnApostropheDoesNotBreakTheCommand()
+    {
+        // The body is emitted inside single quotes, where a backslash escapes nothing. The
+        // apostrophe has to close the quoted run and reopen it, or everything after it is
+        // parsed as separate shell words and the command silently does something else.
+        var curl = Request("POST", body: """{"name":"O'Brien"}""").ToCurl();
+
+        Assert.Contains("""O'\''Brien""", curl);
+        Assert.DoesNotContain("""O\'Brien""", curl);
+
+        var yaml = FortitudeYamlGenerator.CurlToMatchYaml(curl);
+
+        Assert.Contains("/users", yaml);
+        Assert.Contains("POST", yaml);
+    }
+
+    [Fact]
+    public void AHeaderContainingAnApostropheIsEscapedTheSameWay()
+    {
+        var curl = Request(headers: new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["X-Note"] = ["it's fine"]
+        }).ToCurl();
+
+        Assert.Contains("""'X-Note: it'\''s fine'""", curl);
+        Assert.Contains("/users", FortitudeYamlGenerator.CurlToMatchYaml(curl));
+    }
+
+    [Fact]
+    public void ABinaryBodyIsBase64EncodedAndLabelled()
+    {
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+        var curl = Request("POST", rawBody: png).ToCurl();
+
+        Assert.Contains("--data-binary", curl);
+        Assert.Contains(Convert.ToBase64String(png), curl);
+
+        // A trailing '#' comment is valid shell, so the command still runs, and the reader
+        // is told the bytes are encoded rather than being handed silent mojibake.
+        Assert.Contains("# body was not valid UTF-8", curl);
+    }
+
+    [Fact]
+    public void ABinaryBodyStillRoundTripsThroughTheGenerator()
+    {
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+        var yaml = FortitudeYamlGenerator.CurlToMatchYaml(Request("POST", rawBody: png).ToCurl());
+
+        Assert.Contains("/users", yaml);
+        Assert.Contains("POST", yaml);
+    }
+
+    [Fact]
+    public void CookiesAreNotSentTwiceWhenTheHeaderIsAlsoPresent()
+    {
+        // A request captured from HttpContext carries the cookies both as a raw header and
+        // as the parsed dictionary. Emitting both sends every cookie twice.
+        var curl = Request(
+            headers: new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Cookie"] = ["session=abc"]
+            },
+            cookies: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["session"] = "abc"
+            }).ToCurl();
+
+        var occurrences = curl.Split("Cookie:").Length - 1;
+
+        Assert.Equal(1, occurrences);
+    }
+
+    [Fact]
+    public void AUrlContainingShellMetacharactersIsQuoted()
+    {
+        var curl = Request(query: "?q=a&b=$(whoami)").ToCurl();
+
+        Assert.Contains("'http://localhost/users?q=a&b=$(whoami)'", curl);
     }
 }
