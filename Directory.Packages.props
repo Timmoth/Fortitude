@@ -12,11 +12,11 @@
     <PackageVersion Include="Microsoft.AspNetCore.Http" Version="2.3.14" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
     <PackageVersion Include="Microsoft.AspNetCore.Routing" Version="2.3.14" />
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0" />
     <!--
          Pinned explicitly: Microsoft.AspNetCore.Http pulls 2.3.12 transitively, which carries
          GHSA-6527-9fp8-r4x6. The client calls QueryHelpers directly, so this is a real

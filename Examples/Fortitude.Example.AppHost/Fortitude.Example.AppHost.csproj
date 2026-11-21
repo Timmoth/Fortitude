@@ -21,6 +21,8 @@
     <ItemGroup>
       <PackageReference Include="Aspire.Hosting.AppHost" />
         <PackageReference Include="Aspire.Hosting.Dotnet" />
+        <PackageReference Include="Microsoft.Extensions.Http" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Console" />
     </ItemGroup>
 
 </Project>
